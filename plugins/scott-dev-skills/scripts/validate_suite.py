@@ -12,7 +12,16 @@ import yaml
 
 
 MAX_BODY_LINES = 220
+MAX_PACKAGE_RELATIVE_PATH = 90
+EXPECTED_VERSION = "0.1.0-beta.1"
 LEGACY_SKILLS = {"audit-team"}
+FORBIDDEN_LEGACY_TEXT = [
+    ("agent-pipeline-" + "codex", "standalone Agent Pipeline product name"),
+    ("0." + "9.1", "standalone Agent Pipeline release version"),
+]
+LEGACY_TEXT_ALLOWLIST = {
+    Path("references/migration-notes.md"),
+}
 
 
 def main() -> int:
@@ -22,6 +31,9 @@ def main() -> int:
     validate_cases(root, errors)
     validate_manifest(root, errors)
     validate_resource_contracts(root, errors)
+    validate_release_guards(root, errors)
+    validate_packaged_paths(root, errors)
+    validate_no_legacy_text(root, errors)
     if errors:
         print("Suite validation failed:")
         for error in errors:
@@ -40,8 +52,18 @@ def validate_manifest(root: Path, errors: list[str]) -> None:
         return
     if manifest.get("name") != "scott-dev-skills":
         errors.append("plugin name must be scott-dev-skills")
+    if manifest.get("version") != EXPECTED_VERSION:
+        errors.append(f"plugin version must be {EXPECTED_VERSION}")
     if manifest.get("skills") != "./skills/":
         errors.append("plugin skills path must be ./skills/")
+    interface = manifest.get("interface") or {}
+    if interface.get("displayName") != "ScottDevSkills":
+        errors.append("plugin displayName must be ScottDevSkills")
+    if interface.get("category") != "Productivity":
+        errors.append("plugin category must be Productivity")
+    capabilities = set(interface.get("capabilities") or [])
+    if not {"Interactive", "Write"}.issubset(capabilities):
+        errors.append("plugin capabilities must include Interactive and Write")
 
 
 def validate_skills(root: Path, errors: list[str]) -> None:
@@ -122,6 +144,40 @@ def validate_resource_contracts(root: Path, errors: list[str]) -> None:
                 continue
             if not (root / rel_path).is_file():
                 errors.append(f"resource contract missing file for {skill}: {rel_path}")
+
+
+def validate_release_guards(root: Path, errors: list[str]) -> None:
+    smoke_script = root / "scripts" / "install_smoke.ps1"
+    if not smoke_script.is_file():
+        errors.append("missing scripts/install_smoke.ps1 release install-smoke guard")
+
+
+def validate_packaged_paths(root: Path, errors: list[str]) -> None:
+    for path in root.rglob("*"):
+        if not path.is_file():
+            continue
+        rel = path.relative_to(root).as_posix()
+        if len(rel) > MAX_PACKAGE_RELATIVE_PATH:
+            errors.append(
+                f"packaged path exceeds {MAX_PACKAGE_RELATIVE_PATH} chars: {rel}"
+            )
+
+
+def validate_no_legacy_text(root: Path, errors: list[str]) -> None:
+    for path in root.rglob("*"):
+        if not path.is_file():
+            continue
+        rel = path.relative_to(root)
+        if rel in LEGACY_TEXT_ALLOWLIST:
+            continue
+        try:
+            text = path.read_text(encoding="utf-8")
+        except UnicodeDecodeError:
+            continue
+        lowered = text.lower()
+        for needle, label in FORBIDDEN_LEGACY_TEXT:
+            if needle.lower() in lowered:
+                errors.append(f"legacy text found in {rel.as_posix()}: {label}")
 
 
 if __name__ == "__main__":

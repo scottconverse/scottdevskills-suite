@@ -22,7 +22,7 @@ exist:
 - at least one executable pipeline YAML such as `.pipelines/feature.yaml`
 
 If any are missing, stop and tell the user to run
-`agent-pipeline-codex:pipeline-init` first. Do not create ad hoc pipeline files.
+`pipeline-init` first. Do not create ad hoc pipeline files.
 
 ## Inputs
 
@@ -73,7 +73,7 @@ Write `.agent-runs/<run_id>/intake.md` with:
 status: draft
 pipeline_type: <pipeline_type>
 slug: <slug>
-created_from: agent-pipeline-codex:intake
+created_from: scottdevskills:intake
 
 ## Source description
 
@@ -100,8 +100,8 @@ created_from: agent-pipeline-codex:intake
 
 1. Review and complete manifest.yaml.
 2. Review and complete scope-lock.yaml.
-3. Run agent-pipeline-codex:validate-manifest for <run_id>.
-4. Run agent-pipeline-codex:run-pipeline only after validation passes.
+3. Validate the manifest for <run_id>.
+4. Start `run-pipeline` only after validation passes.
 ```
 
 ### 2. manifest.yaml
@@ -142,7 +142,7 @@ expected for most intakes.
 
 Show the paths created, summarize that they are drafts, and tell the user the
 next action is to complete the TODO fields and run
-`agent-pipeline-codex:validate-manifest` for the run id.
+`validate-manifest` for the run id.
 
 Do not say the run is ready. Do not start `run-pipeline`.
 

@@ -85,7 +85,7 @@ Pairs with:
 - <AUDIT_GATE_PATH> (out-of-repo, short mandatory gate)
 - <AUDIT_PROTOCOL_PATH> (out-of-repo, long reference)
 
-Scaffolded by audit-init from scottconverse/agent-pipeline-codex v0.3+.
+Scaffolded by audit-init from ScottDevSkills.
 This is process documentation only. No feature work, no code change,
 no tag/release impact.
 ```

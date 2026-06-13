@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 """Print the next executable action for the active Agent Pipeline run."""
 
@@ -64,7 +64,7 @@ def next_action(run_dir: Path) -> tuple[int, str]:
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument(
-        "--version", action="version", version="agent-pipeline-codex 0.9.1"
+        "--version", action="version", version="scott-dev-skills 0.1.0-beta.1"
     )
     parser.add_argument(
         "--run-dir",

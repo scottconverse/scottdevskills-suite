@@ -1,917 +1,113 @@
-# Architecture
+# ScottDevSkills Agent Pipeline Architecture
 
-How the agent-pipeline-codex plugin is organized, what runs where, and which
-artifact each stage produces.
-
-This document is for two audiences:
-
-1. **Operators** who want to understand what the plugin does on their
-   machine before they trust it with a real codebase.
-2. **Contributors** who want to add a new pipeline type, a new role, or a
-   new policy check without breaking the contract the rest of the system
-   depends on.
-
-If you only want to run a pipeline, read [`USER-MANUAL.md`](USER-MANUAL.md)
-first. This document assumes you have already done at least one run.
-
----
-
-## 1. The big picture
-
-The plugin orchestrates work across **three layers**:
-
-1. **Plugin layer** (`agent-pipeline-codex/`) - the Codex skills, workflow specs, the
-   stage definitions, the role files, and the policy scripts. Versioned,
-    shared across all your projects. Optional plugin hooks also live here and
-   run in Codex's lifecycle when `[features].plugin_hooks = true`.
-2. **Project layer** (`<your-project>/`) - copies of the pipeline
-   definitions, role files, and policy scripts that `pipeline-init`
-   scaffolded into your project. Yours to customize.
-3. **Run layer** (`<your-project>/.agent-runs/<run-id>/`) - one directory
-   per pipeline run, containing the manifest, scope lock, every produced
-   artifact, and the append-only `run.log`. Gitignored by default.
+## Layers
 
 ```mermaid
-flowchart TB
-    subgraph PluginLayer["Plugin layer (one install per machine)"]
-        direction LR
-        A1[".codex-plugin/plugin.json"]
-        A2["skills + commands/<br/>pipeline-init<br/>intake<br/>new-run<br/>run-pipeline"]
-        A3["pipelines/<br/>feature.yaml<br/>bugfix.yaml<br/>roles/*.md"]
-        A4["scripts/<br/>check_*.py<br/>final_response_gate.py<br/>agent_decision_gate.py<br/>pipeline_continue.py<br/>run_all.py"]
-        A5["hooks/<br/>hooks.json<br/>hook_runner.py"]
-    end
+flowchart TD
+  User["User request"] --> Router["agent-pipeline router"]
+  Router --> Init["pipeline-init"]
+  Router --> Intake["intake"]
+  Router --> NewRun["new-run"]
+  Router --> Validate["validate-manifest"]
+  Router --> Run["run-pipeline"]
+  Router --> Status["show-run-status"]
+  Router --> AuditInit["audit-init"]
 
-    subgraph ProjectLayer["Project layer (per repo, after pipeline-init)"]
-        direction LR
-        B1["AGENTS.md"]
-        B2[".pipelines/<br/>copies of YAMLs<br/>copies of roles/"]
-        B3["scripts/policy/<br/>checks + control gates"]
-        B4[".gitignore<br/>(adds .agent-runs/)"]
-    end
+  Init --> Project["Project scaffolding"]
+  Intake --> RunDir[".agent-runs/<run-id>/"]
+  NewRun --> RunDir
+  Validate --> RunDir
+  Run --> RunDir
+  Run --> Policy["scripts/policy/"]
+  Run --> PipelineDefs[".pipelines/*.yaml"]
+  Status --> RunDir
+  AuditInit --> AuditDocs["Audit handoff artifacts"]
 
-    subgraph RunLayer["Run layer (per pipeline invocation)"]
-        direction LR
-        C1[".agent-runs/&lt;run-id&gt;/<br/>manifest.yaml<br/>scope-lock.yaml<br/>research.md<br/>plan.md<br/>...<br/>manager-decision.md<br/>active-control-state.md<br/>decision-ledger.ndjson<br/>scope-lock-receipt.txt<br/>run.log"]
-    end
-
-    PluginLayer -- "pipeline-init copies into" --> ProjectLayer
-ProjectLayer -- "intake/new-run + run-pipeline produce" --> RunLayer
+  RunDir --> AuditFull["audit-full"]
+  Project --> Walkthrough["walkthrough evidence"]
 ```
 
-The strict separation matters: when an agent stage runs, it only sees the
-project layer and the run layer. The plugin layer is read-only template
-material; once scaffolded, your project's behavior is yours.
+## Package Layout
 
-Optional v0.7 hooks do not scaffold into the project. They stay in the plugin
-layer, read the project/run artifacts, and return Codex hook JSON responses.
+The suite ships the pipeline as normal Codex skills plus a compact payload:
 
-### Hook data flow (v0.7)
-
-```mermaid
-flowchart LR
-    H0["Codex lifecycle event<br/>SessionStart / PreToolUse / Stop"] --> H1["hooks/hook_runner.py"]
-    H1 --> H2["hook_utils.py<br/>active run + scope + directive discovery"]
-    H2 --> H3["Existing policy truth<br/>final_response_gate.py<br/>stop_validator.py<br/>manifest allowed_paths"]
-    H3 --> H4["Codex hook JSON<br/>additionalContext / deny / continue"]
-    H2 --> H5[".agent-runs/&lt;run-id&gt;/hook-events.jsonl<br/>audit receipt"]
-    H2 --> H6[".agent-runs/&lt;run-id&gt;/memory/<br/>JSONL receipts + handoff_current.md"]
-    H6 --> H4
+```text
+plugins/scott-dev-skills/
+  .codex-plugin/plugin.json
+  skills/
+    agent-pipeline/
+    pipeline-init/
+    intake/
+    new-run/
+    validate-manifest/
+    run-pipeline/
+    show-run-status/
+    audit-init/
+  p/
+    p/   # pipeline YAML, roles, templates copied to .pipelines/
+    s/   # policy scripts copied to scripts/policy/
 ```
 
-Hooks are runtime guardrails, not a replacement for pipeline evidence. The
-promotion contract still comes from `run.log`, verifier, drift-detector,
-critic, policy, judge, directive, and manager artifacts.
+The short `p/` package path is deliberate. It keeps the marketplace checkout
+safe on Windows while letting initialized projects receive readable target
+paths.
 
-### Persistent run memory
+## Runtime Model
 
-The hook layer also owns a small file-backed memory substrate for each active
-run. It writes only when `active-control-state.md` marks a run active, and it
-keeps all memory inside `.agent-runs/<run-id>/memory/`:
+1. The router selects the smallest applicable stage skill.
+2. `pipeline-init` copies bundled pipeline definitions and policy scripts into
+   the target repo.
+3. `new-run` or `intake` creates a durable run directory.
+4. `validate-manifest` checks schema and scope before execution.
+5. `run-pipeline` advances stages in YAML order and appends to `run.log`.
+6. `show-run-status` reads the same artifacts without mutating them.
+7. `audit-full` can audit the repo and run artifacts after or during delivery.
 
-- `events.jsonl` for every memory-worthy lifecycle event.
-- `turns.jsonl` for user prompts submitted during the run.
-- `decisions.jsonl` for tool warnings, denials, and permission decisions.
-- `open_loops.jsonl` for failed-tool guidance and invalid-stop continuations.
-- `memory_probe.log` as a plain-text hook-fire diagnostic.
-- `handoff_current.md` as a compact generated wake-up summary.
+## State Files
 
-`SessionStart` reads `handoff_current.md` and adds it to the active-run context.
-This is the built-in memory floor: deterministic files, no service dependency,
-and no semantic search requirement. A future localmem adapter can mirror these
-same records into an MCP memory server, but the pipeline does not depend on that
-server to retain the current run's operational memory.
+Initialized projects use:
 
----
+- `.pipelines/` for pipeline definitions, templates, and role prompts.
+- `scripts/policy/` for local policy checks.
+- `.agent-runs/<run-id>/manifest.yaml` for the run contract.
+- `.agent-runs/<run-id>/scope-lock.yaml` for canonical scope facts.
+- `.agent-runs/<run-id>/run.log` for append-only stage history.
+- `.agent-runs/<run-id>/*-report.md` for stage evidence.
 
-## 2. Stage flow - feature pipeline
+## Control Loop
 
-The default `feature` pipeline runs eleven stages in order. Three of them
-are **human-approval gates** (orange). One is an **automated policy
-gate** (yellow), and auto-promote is a machine decision stage. The rest are
-agent stages (blue) that delegate to a fresh subagent per stage.
+The control loop separates completion evidence from stop permission. A run may
+have a successful push or green CI and still need to continue if the manifest
+authorizes additional work. Valid stops require a named gate or blocker.
 
-```mermaid
-flowchart TB
-    Start([User runs new-run feature my-task]) --> M[manifest<br/>role: human]
-    M -- APPROVE --> R[research<br/>role: researcher<br/>artifact: research.md]
-    R --> P[plan<br/>role: planner<br/>artifact: plan.md]
-    P -- APPROVE --> TW[test-write<br/>role: test-writer<br/>artifact: failing-tests-report.md]
-    TW --> E[execute<br/>role: executor<br/>artifact: implementation-report.md]
-    E --> POL[policy<br/>role: pipeline<br/>command: scripts/policy/run_all.py<br/>artifact: policy-report.md]
-    POL -- exit 0 --> V[verify<br/>role: verifier<br/>artifact: verifier-report.md]
-    V --> DD[drift-detect<br/>role: drift-detector<br/>artifact: drift-report.md]
-    DD --> C[critique<br/>role: critic<br/>artifact: critic-report.md]
-    C --> AP[auto-promote<br/>role: pipeline<br/>artifact: manager-decision.md or auto-promote-report.md]
-    AP --> MGR[manager<br/>role: manager<br/>artifact: manager-decision.md]
-    MGR -- APPROVE --> Done([Pipeline complete])
+Stop categories include human approval, failed policy, destructive action,
+credential need, scope conflict, unavailable external dependency, explicit user
+pause, or all stages complete with the final response gate satisfied.
 
-    M -. BLOCKED .-> Stop1([Stop])
-    P -. BLOCKED .-> Stop2([Stop])
-    POL -. exit != 0 .-> Stop3([Stop])
-    MGR -. BLOCK or REPLAN .-> Stop4([Stop])
+## Policy Scripts
 
-    classDef human fill:#ffd9b3,stroke:#cc6600,color:#000
-    classDef agent fill:#cce5ff,stroke:#0066cc,color:#000
-    classDef policy fill:#fff3b3,stroke:#999900,color:#000
-    classDef stop fill:#ffb3b3,stroke:#cc0000,color:#000
+The bundled policy scripts check manifest shape, allowed paths, scope lock,
+release-doc consistency, plan/directive conformance, action budgets, TODO
+policy, and final-response control state. They are ordinary project files after
+initialization, so teams can inspect and version changes.
 
-    class M,P,MGR human
-    class R,TW,E,V,DD,C agent
-    class POL,AP policy
-    class Stop1,Stop2,Stop3,Stop4 stop
-```
+## Audit Handoff
 
-The `bugfix` pipeline collapses test-write and execute into a single
-**reproduce -> patch** sequence, but the gate structure is identical:
-manifest gate at the start, plan gate after research, manager gate at
-the end.
+The pipeline produces evidence. It does not replace audit judgment.
 
----
+- `audit-lite` is appropriate for small diffs.
+- `audit-full` reads the repo, run artifacts, tests, docs, and UI evidence for
+  a full release-readiness verdict.
+- `audit-init` adds dual-agent handoff artifacts when one agent implements and
+  another audits.
 
-## 3. Artifact data flow
+## Regression Boundaries
 
-Each stage reads every prior artifact and writes exactly one new one.
-This is what makes the pipeline resumable - at any point, the run
-directory is the complete state.
+Suite validation protects this architecture by checking:
 
-```mermaid
-flowchart LR
-    subgraph Inputs["Stage inputs"]
-        I0["manifest.yaml<br/>(human)"]
-        I1["scope-lock.yaml<br/>(canonical rung)"]
-    end
-
-    I1 --> SL["scope-lock checks<br/>(policy)<br/>canonical rung,<br/>path ownership,<br/>docs consistency"]
-    I0 --> R["research.md<br/>(researcher)<br/>+ surfaces director<br/>decisions"]
-    SL --> R
-    I0 --> P["plan.md<br/>(planner)<br/>uses research +<br/>director choices"]
-    R --> P
-    I0 --> TW["failing-tests-report.md<br/>(test-writer)<br/>tests written, all RED"]
-    R --> TW
-    P --> TW
-    I0 --> E["implementation-report.md<br/>(executor)<br/>code, tests now GREEN"]
-    R --> E
-    P --> E
-    TW --> E
-    E --> JL["judge-log.yaml<br/>judge-metrics.yaml<br/>(orchestrator, v0.4)<br/>per-action records<br/>(only when judge<br/>layer is enabled)"]
-    E --> POL["policy-report.md<br/>(automated)<br/>scope lock,<br/>allowed_paths,<br/>no TODOs, ADRs"]
-    POL --> V["verifier-report.md<br/>(verifier)<br/>independent check vs.<br/>manifest exit criteria"]
-    I0 --> V
-    R --> V
-    P --> V
-    TW --> V
-    E --> V
-    JL --> V
-    V --> DD["drift-report.md<br/>(drift-detector)<br/>manifest contract vs.<br/>assembled state"]
-    DD --> CR["critic-report.md<br/>(critic)<br/>adversarial cold read<br/>across six lenses"]
-    CR --> AP["manager-decision.md or<br/>auto-promote-report.md<br/>(auto_promote.py)<br/>six base + directive assertions"]
-    AP --> MGR["manager-decision.md<br/>(manager)<br/>PROMOTE / BLOCK / REPLAN<br/>cites verifier verbatim"]
-    POL --> MGR
-    DD --> MGR
-    CR --> MGR
-    JL --> MGR
-    I0 --> MGR
-    MGR --> ACS["active-control-state.md<br/>(orchestrator)<br/>stop condition + next action"]
-    ACS --> DG["decision-ledger.ndjson<br/>(agent_decision_gate)<br/>stop/defer/skip receipts"]
-
-    classDef human fill:#ffd9b3,stroke:#cc6600,color:#000
-    classDef agent fill:#cce5ff,stroke:#0066cc,color:#000
-    classDef policy fill:#fff3b3,stroke:#999900,color:#000
-    classDef judge fill:#ccf2cc,stroke:#339933,color:#000
-    class I0 human
-    class R,P,TW,E,V,DD,CR,MGR agent
-    class SL,POL,AP policy
-    class JL judge
-    class ACS,DG policy
-```
-
-Two important properties of this flow:
-
-- **Append-only.** No stage modifies a prior artifact. The verifier reads
-  the executor's report; it does not edit it.
-- **Manager has full context.** The PROMOTE/BLOCK/REPLAN decision is made
-  by an agent that has read everything and must cite verifier evidence
-  verbatim. It cannot be polite or encouraging - the role file forbids
-  it.
-
----
-
-### Directive contract data flow
-
-When `.agent-runs/<run-id>/directive.yaml` exists, it becomes an input to the
-manifest, plan, and auto-promote gates:
-
-```mermaid
-flowchart LR
-    D["directive.yaml"] --> H["SHA-256 hash"]
-    H --> L["run.log directive-bound line"]
-    D --> C1["check_directive_conformance.py"]
-    M["manifest.yaml"] --> C1
-    S["scope-lock.yaml"] --> C1
-    C1 -->|"exact match"| MG["manifest gate auto-complete"]
-    C1 -->|"mismatch/diff"| MI["manifest gate stays interactive"]
-    D --> C2["check_plan_against_directive.py"]
-    P["plan.md"] --> C2
-    C2 -->|"all assertions pass"| PG["plan gate auto-complete"]
-    C2 -->|"any assertion fails"| PI["plan gate stays interactive"]
-    D --> AP["auto_promote.py"]
-    Stack["verifier + critic + drift + policy + judge + tests"] --> AP
-    AP -->|"six plus N green"| MD["manager-decision.md PROMOTE with directive evidence"]
-```
-
-The hash line is append-only evidence. Every later directive-aware script
-compares the current directive hash against the bound hash. A mismatch halts
-resume because the pre-approval contract changed after the run started.
-
-## 4. The three human gates
-
-Every gate uses the same pattern unless a directive contract mechanically
-satisfies it: the prior stage produces an artifact, the orchestrator pauses,
-and the human types `APPROVE` or describes a block. There is no "approve with
-caveats" - caveats become a block, the
-caveats become the next manifest.
-
-```mermaid
-sequenceDiagram
-    participant U as "User"
-    participant O as "Orchestrator"
-    participant A as "Agent subagent"
-    participant FS as ".agent-runs/run-id/"
-
-    Note over U,FS: GATE 1 - manifest
-    U->>O: new-run feature my-task
-    O->>FS: write manifest.yaml skeleton
-    O-->>U: "Fill in manifest, then re-invoke run-pipeline"
-    U->>FS: edit manifest.yaml
-    U->>O: run-pipeline feature 2026-05-09-my-task
-    O->>U: a structured user question: APPROVE manifest?
-    U->>O: APPROVE
-    O->>FS: append run.log: manifest COMPLETE
-
-    Note over U,FS: GATE 2 - plan
-    O->>A: spawn researcher subagent
-    A->>FS: write research.md
-    O->>A: spawn planner subagent
-    A->>FS: write plan.md
-    O->>U: a structured user question: APPROVE plan?
-    U->>O: APPROVE
-    O->>FS: append run.log: plan COMPLETE
-
-    Note over U,FS: AGENT STAGES (no gate)
-    O->>A: test-writer
-    A->>FS: failing-tests-report.md
-    O->>A: executor
-    A->>FS: implementation-report.md
-    O->>O: bash policy run
-    O->>FS: policy-report.md
-    O->>A: verifier
-    A->>FS: verifier-report.md
-    O->>A: manager
-    A->>FS: manager-decision.md
-
-    Note over U,FS: GATE 3 - manager-decision
-    O->>U: a structured user question: APPROVE manager decision?
-    U->>O: APPROVE
-    O->>FS: append run.log: manager COMPLETE
-    O-->>U: Pipeline complete
-```
-
-If the user types anything other than `APPROVE` at any gate, the
-orchestrator writes `BLOCKED` to `run.log` and stops. Re-invoking the
-same `run-pipeline` later resumes from the next non-`COMPLETE` stage.
-The log is the resume key.
-
-### Control-loop state
-
-During an authorized run, `run.log` is not the only control artifact. The
-orchestrator also writes `.agent-runs/<run-id>/active-control-state.md` before
-any final response. That file records the current stage, last completed gate,
-next required action, stop condition, whether a final response is allowed, and
-the action the runner is continuing to.
-
-`scripts/policy/check_pipeline_control_loop.py --run <run-id>` validates the recorded control state for one run. `scripts/policy/stop_validator.py` is the shared truth layer that binds stop conditions to current run evidence instead of trusting valid-looking state text. `scripts/policy/final_response_gate.py --require-active-run` is the pre-final executable gate; it discovers active control-state files and blocks when any active run must continue or records a stale stop. `scripts/policy/agent_decision_gate.py --write-ledger` validates the agent's specific stop, defer, skip, or final-response decision and records the result in `decision-ledger.ndjson`. `scripts/policy/check_decision_ledger.py --run <run-id>` validates that ledger as schema-v1 NDJSON. `scripts/policy/pipeline_continue.py` prints the next executable action when the agent is not allowed to stop. `scripts/policy/show_run_status.py --run <run-id>` is the read-only operator view over the same state.
-The gates fail when the runner tries to stop on successful push, green CI, draft PR
-status, an unverified blocker, a recommended next action, unresolved caveats, or release/tag after all
-required gates have passed. `Open Caveats / Release Risks` blocks completion
-unless each item is fixed or marked `INTENTIONAL DEFERRAL:` with cited
-authorization.
-
-```mermaid
-flowchart TB
-    Intent["Agent intends to stop, defer, skip push/CI, ask a non-gate question, compact-and-stop, or final-answer"] --> State["Write/read active-control-state.md"]
-    State --> Loop["check_pipeline_control_loop.py --run X"]
-    Loop --> Final["final_response_gate.py --require-active-run"]
-    Final --> Decision["agent_decision_gate.py --intent ... --claimed-stop-condition ... --write-ledger"]
-    Decision --> Allowed{Allowed?}
-    Allowed -- yes --> Stop["Stop/report with valid condition and ledger receipt"]
-    Allowed -- no --> Continue["pipeline_continue.py prints required next action"]
-    Continue --> Work["Continue the authorized run"]
-
-    classDef policy fill:#fff3b3,stroke:#999900,color:#000
-    classDef stop fill:#ffd9b3,stroke:#cc6600,color:#000
-    classDef work fill:#cce5ff,stroke:#0066cc,color:#000
-    class Loop,Final,Decision,Continue policy
-    class Stop stop
-    class Work work
-```
-
-Decision ledger rows are newline-delimited JSON objects with `schema_version: 1`.
-Required keys are `allowed` (boolean), `intent` (string),
-`claimed_stop_condition` (string), `reason` (string), and `timestamp` (string).
-Optional string keys are `required_next_action`, `continuing_to`, and
-`state_path`. The validator rejects blank lines, malformed JSON, missing
-required keys, wrong primitive types, and unknown schema versions.
-
----
-
-## 5. What an agent stage actually sees
-
-When the orchestrator spawns a subagent, it builds a prompt with three
-pieces:
-
-1. **Role file** (`.pipelines/roles/<role>.md`) verbatim - the contract
-   for what this role does and what it never does.
-2. **Run context** - the manifest plus every prior artifact, joined with
-   `--- <filename> ---` separators.
-3. **Run instructions** - the run id, the working directory, and the
-   expected output filename.
-
-```mermaid
-flowchart TB
-    subgraph Prompt["Prompt sent to fresh subagent"]
-        Role["1. Role file content<br/>(verbatim)"]
-        Sep1["---"]
-        RC["2. RUN CONTEXT:<br/>--- manifest.yaml ---<br/>(content)<br/>--- research.md ---<br/>(content)<br/>--- plan.md ---<br/>(content)<br/>..."]
-        Sep2["---"]
-        Inst["3. RUN ID: 2026-05-09-my-task<br/>WORKING DIR: .agent-runs/.../<br/>Write your output to<br/>.agent-runs/.../&lt;artifact&gt;<br/>and stop."]
-    end
-
-    subgraph Agent["Subagent (general-purpose, fresh context)"]
-        Read["Read inputs<br/>(no prior session)"]
-        Work["Do the role's work<br/>(role file forbids overreach)"]
-        Write["Write artifact<br/>to expected path"]
-        Stop["Exit"]
-    end
-
-    Prompt --> Agent
-    Read --> Work --> Write --> Stop
-```
-
-The orchestrator does **not** share its conversation history with the
-subagent. The subagent sees the prompt and the filesystem. That is by
-design: each stage starts with a clean head and only the artifacts on
-disk.
-
----
-
-## 6. The policy stage
-
-The policy stage is the only non-agent automation in the pipeline. It
-runs `python scripts/policy/run_all.py --run <run-id>`, which executes
-each check in `CHECKS` and aggregates results. Exit code 0 means
-PROMOTE-eligible; non-zero halts the run.
-
-```mermaid
-flowchart TB
-    Start([orchestrator runs<br/>scripts/policy/run_all.py --run X]) --> Loop{For each check<br/>in CHECKS}
-    Loop --> AP[check_allowed_paths.py<br/>--manifest .agent-runs/X/manifest.yaml]
-    AP --> AP_OK{exit 0?}
-    AP_OK -- yes --> NT[check_no_todos.py<br/>--exclude-paths foo,bar]
-    AP_OK -- no --> Fail([fail with stdout])
-
-    NT --> NT_OK{exit 0?}
-    NT_OK -- yes --> AG[check_adr_gate.py<br/>--manifest .agent-runs/X/manifest.yaml]
-    NT_OK -- no --> Fail
-
-    AG --> AG_OK{exit 0?}
-    AG_OK -- yes --> More{More checks?}
-    AG_OK -- no --> Fail
-
-    More -- yes --> Loop
-    More -- no --> Pass([all pass - exit 0])
-
-    classDef pass fill:#b3f0b3,stroke:#009900,color:#000
-    classDef fail fill:#ffb3b3,stroke:#cc0000,color:#000
-    class Pass pass
-    class Fail fail
-```
-
-The default check set is generic. To add project-specific checks,
-edit `scripts/policy/run_all.py` and append entries to `CHECKS`. Each
-check is a list of CLI args; `run_all.py` runs them, captures stdout +
-stderr, and reports any non-zero exit.
-
-Examples of project-specific checks worth adding:
-
-- `check_no_secrets.py` - scan diff for credential patterns
-- `check_ffmpeg_wrapper.py` - enforce that all ffmpeg calls go through
-  the wrapper module
-- `check_no_console_log.py` - block `console.log` in production source
-
----
-
-## 7. The judge layer (v0.4) - real-time action supervision
-
-The judge layer is **opt-in supervision inside the executor stage**. It is **not a new pipeline stage**. When `.pipelines/action-classification.yaml` exists in your project, the orchestrator uses Handler 3a (instead of the standard Handler 3) for the executor stage. Handler 3a wraps every executor tool call in a **classify -> judge -> execute** inner loop. The executor's role file is unchanged; the executor does not know the judge exists.
-
-### Why this is here
-
-Prompts don't hold across long context windows. The most expensive class of agent failure is not "the agent did nothing" but "the agent did the wrong thing because it confidently inferred authorization from inference instead of evidence." The classic example is the Lindy case (May 2026, Nate Jones): an agent sent 14 unauthorized emails because the operator's prior approvals trained the manifest-vs-action gap shut. Manual confirmation prompts don't help - operators learn to click "okay" reflexively.
-
-The architectural fix is a second agent (the judge) whose sole loyalty is the manifest, evaluated in **context isolation** from the executor's reasoning chain. The judge cannot be persuaded by the executor's logic because it never sees it. It receives only the manifest, the action policy, prior judge decisions, and the structured action proposal.
-
-### The classify -> judge -> execute inner loop
-
-```mermaid
-flowchart TB
-    Start([Executor proposes a tool call]) --> Classify[Classify against<br/>action-classification.yaml]
-    Classify --> Route{Action class?}
-
-    Route -- read_only --> AutoLog1[Execute action<br/>+ log auto_allow]
-    Route -- reversible_write --> AutoLog2[Execute action<br/>+ log auto_allow]
-    Route -- external_facing --> SpawnJudge[Spawn judge subagent<br/>with isolated context]
-    Route -- high_risk --> SpawnJudge
-
-    SpawnJudge --> Verdict{Judge verdict}
-
-    Verdict -- allow + external_facing --> Execute[Execute action<br/>+ log judged_allow]
-    Verdict -- allow + high_risk --> HumanConfirm[a structured user question:<br/>APPROVE high-risk?]
-    Verdict -- block --> Halt([Halt pipeline<br/>+ log judged_block])
-    Verdict -- revise --> Revise[Send revision_instruction<br/>back to executor<br/>+ log judged_revise]
-    Verdict -- escalate --> HumanEscalate[a structured user question:<br/>escalation_question]
-
-    HumanConfirm -- APPROVE --> ExecConfirmed[Execute action<br/>+ log human_confirmed]
-    HumanConfirm -- Block --> HaltHuman([Halt pipeline<br/>+ log human_blocked])
-
-    HumanEscalate -- APPROVE --> ExecEscalated[Execute action<br/>+ log human_confirmed]
-    HumanEscalate -- Block --> HaltHuman
-
-    Revise --> Retry[Executor produces<br/>revised proposal]
-    Retry --> Classify
-
-    AutoLog1 --> Continue([Continue executor loop])
-    AutoLog2 --> Continue
-    Execute --> Continue
-    ExecConfirmed --> Continue
-    ExecEscalated --> Continue
-
-    classDef agent fill:#cce5ff,stroke:#0066cc,color:#000
-    classDef judge fill:#ccf2cc,stroke:#339933,color:#000
-    classDef human fill:#ffd9b3,stroke:#cc6600,color:#000
-    classDef stop fill:#ffb3b3,stroke:#cc0000,color:#000
-
-    class Classify,Route agent
-    class SpawnJudge,Verdict judge
-    class HumanConfirm,HumanEscalate human
-    class Halt,HaltHuman stop
-```
-
-The revise loop has a hard cap of 3 cycles per `action_id`. On the 4th cycle, the orchestrator auto-escalates with the question "Executor proposed this action 4 times after revise verdicts; revision loop is not converging." This prevents the executor from looping indefinitely against a misaligned manifest.
-
-### The four risk classes
-
-Defined in `.pipelines/action-classification.yaml`. Rules are evaluated top-to-bottom within each class; first match wins.
-
-| Class | Examples | Routing |
-| :--- | :--- | :--- |
-| `read_only` | `cat`, `grep`, `ls`, `git log`, `pytest`, `ruff check` | Execute immediately + log |
-| `reversible_write` | `str_replace_editor`, `git commit`, `git add`, `cp`, `mv`, `pip install` | Execute immediately + log |
-| `external_facing` | `git push` (non-main, non-force), `gh pr create`, `curl -X POST`, `docker push`, `kubectl apply` | Judge required; ALLOW executes |
-| `high_risk` | `rm -rf`, `git push --force`, `git push main`, `DROP TABLE`, `npm publish`, `chmod` | Judge required; ALLOW + human confirm |
-
-Unmatched actions default to `reversible_write` - the safer assumption for any unclassified write-like action.
-
-### Context isolation - what the judge sees and doesn't see
-
-The judge is invoked as a fresh Codex subagent. The orchestrator deliberately supplies only the manifest, the matched action policy, prior judge decisions for this run (so the judge can detect re-proposals of blocked actions), and the structured action proposal block.
-
-```mermaid
-flowchart LR
-    subgraph Executor["Executor subagent"]
-        E_role["executor.md role file"]
-        E_context["Full run context<br/>(manifest, plan,<br/>research, prior artifacts)"]
-        E_reasoning["Internal reasoning chain<br/>(planning, retries,<br/>self-corrections)"]
-        E_action["Proposed tool call"]
-    end
-
-    subgraph Judge["Judge subagent (fresh context)"]
-        J_role["judge.md role file"]
-        J_manifest["manifest.yaml"]
-        J_policy["matched action policy<br/>(class + rule + note)"]
-        J_prior["prior judge_decisions/<br/>this run"]
-        J_proposal["action_proposal block"]
-    end
-
-    E_action -. orchestrator passes .-> J_proposal
-    E_reasoning -. NOT shared .-> Judge
-    E_context -. NOT shared .-> Judge
-
-    classDef agent fill:#cce5ff,stroke:#0066cc,color:#000
-    classDef judge fill:#ccf2cc,stroke:#339933,color:#000
-    class Executor agent
-    class Judge judge
-```
-
-This isolation is the mechanism. If the judge saw the executor's internal reasoning, it could be persuaded by the same chain of inferences that produced the over-broad action in the first place. Single-model-family correlated judgment defeats the purpose. Context isolation forces the judge to evaluate the action against the manifest only, using only what the executor cited as evidence.
-
-### Artifacts produced
-
-Two new files land in the run directory when the judge layer is active:
-
-- **`.agent-runs/<run-id>/judge-log.yaml`** - chronological log of every action: tool, arguments, matched class, disposition (auto_allow / judged_allow / judged_revise / judged_block / judged_escalate / human_confirmed / human_blocked), and the judge's reason and revision instruction when applicable. Both the verifier and the manager read this when reasoning about the executor's run.
-- **`.agent-runs/<run-id>/judge-metrics.yaml`** - aggregate counts: `total_actions`, `by_class`, `by_disposition`, `escalation_rate`, `judge_invocations`, `revision_cycles`. The escalation rate is the operator's tuning signal - see USER-MANUAL.md.
-
-A third internal directory holds per-action verdict files for replay and audit:
-
-- **`.agent-runs/<run-id>/judge-decisions/<action_id>.yaml`** - one YAML file per judged action, written by the judge subagent. The orchestrator parses these directly; they are also read by the next judge invocation as `prior_judge_decisions`.
-
-### When the judge is and isn't active
-
-- **`.pipelines/action-classification.yaml` exists in the project** -> Handler 3a is used for the executor stage; the judge layer is active for that run.
-- **`.pipelines/action-classification.yaml` does not exist** -> Handler 3 is used for the executor stage exactly as in v0.3 and earlier; the judge layer is inactive. No `judge-log.yaml` or `judge-metrics.yaml` is produced.
-
-The decision is made once at the start of the run. Adding or removing the file mid-run does not retroactively change a stage that has already completed; a resumed run picks up the on-disk state at resume time.
-
-### Relationship to other gates
-
-The judge does **not** replace any existing gate. It supplements them at a different layer:
-
-| Layer | Catches | When |
-| :--- | :--- | :--- |
-| Manifest gate | Wrong scope | Before any stage runs |
-| Plan gate | Wrong approach | Before any code is written |
-| **Judge (v0.4)** | **Unauthorized actions** | **In real time, during executor** |
-| Policy stage | Path violations, TODOs, ADR changes | After executor, before verifier |
-| Verifier stage | Manifest exit criteria not met | After policy |
-| Manager gate | Anything verifier marked NOT MET | Final gate before merge |
-
-The judge catches what the others can't: real-time interception of irreversible or external actions before they execute. The policy and verifier stages run **after** the executor has already done its work; the judge runs **during** the executor's work, so it can stop the action before it lands.
-
----
-
-## 8. Single-AI hardening (v0.5) - critic, drift-detector, auto-promote
-
-The v0.5 release adds three new stages to the pipeline that compensate for dropping dual-AI cross-family verification. They run between `verify` and `manager`:
-
-```
-verify -> drift-detect -> critique -> auto-promote -> manager
-```
-
-Each is a structural substitute for a different aspect of the dual-AI handoff that v0.3 enables but does not enforce inside the pipeline.
-
-### drift-detector
-
-A read-only role that compares the manifest's contract (`goal`, `expected_outputs`, `definition_of_done`, `non_goals`) against the assembled final state of the run - durable docs included (`CHANGELOG.md`, `README.md`, `USER-MANUAL.md`, ADRs, any project HANDOFF). It catches the gap class neither the judge (per-action) nor the verifier (per-criterion) can see: documents that say one thing while code says another, top-level ledger totals that don't match row counts, version strings out of sync across `pyproject.toml` / `__init__.py` / `CHANGELOG.md`, status-word abuse, "Closed" without evidence.
-
-The role emits a structured `**Drift: <total> total, <blocker> blocker**` count line that the `auto-promote` stage parses directly. Blocker drift forbids auto-promotion regardless of other conditions.
-
-### critic
-
-A hostile cold read of every artifact in the run, in a fresh context. The critic role file is deliberately adversarial: hard rules forbid encouragement, severity softening, "no findings" without per-lens evidence, and trusting the verifier or executor at face value. The critic walks six lenses - engineering, UX, tests, docs, QA, scope - and emits a `**Findings: <total> total, <blocker> blocker, <critical> critical, <major> major, <minor> minor**` count line that `auto-promote` parses.
-
-The critic is the structural substitute for the v0.3 cross-agent auditor when running with a single AI. Same model family, fresh context, contrarian role contract.
-
-### auto-promote
-
-A `role: pipeline` stage that runs `scripts/auto_promote.py`. It reads the artifacts produced by verifier, critic, drift-detector, policy, judge (when active), and executor, then checks six base conditions:
-
-1. Verifier-clean: zero `NOT MET` and zero `PARTIAL` criteria.
-2. Critic-clean: zero blocker findings and zero critical findings.
-3. Drift-clean: zero blocker drift items.
-4. Policy-passed: `POLICY: ALL CHECKS PASSED` in `policy-report.md`.
-5. Judge-clean: zero `judged_block` and zero `human_blocked` dispositions (vacuous when the v0.4 judge layer is inactive).
-6. Tests-passed: a recognizable `N passed[, 0 failed]` or `all tests passed` signal in `implementation-report.md`.
-
-When no directive is present, those six conditions are sufficient. When a
-directive is bound to the run, `auto_promote.py` adds every
-`acceptance.manager` assertion from `directive.yaml`, plus directive hash
-integrity, to the condition list. The manager gate auto-fires only when all six
-plus N are green.
-
-When all required conditions pass, the script writes a preset
-`manager-decision.md` with `**Decision: PROMOTE**` and a citation block naming
-the evidence for each condition. Directive-bound decisions also cite the
-directive hash, author, authority source, and each satisfied directive
-assertion. The manager stage detects the preset (per Handler 4 in
-`commands/run-pipeline.md`) and short-circuits the human-approval gate,
-advancing the pipeline automatically.
-
-When any condition fails, the script writes `auto-promote-report.md` naming which conditions failed and exits 1. The manager stage runs normally with the human-approval gate active.
-
-### Pre-edit fact-forcing in executor
-
-The executor role file now contains a "Pre-edit fact-forcing gate" section. Before the first edit/write to any file in the run, the executor must produce a structured fact block (importers/callers, public API affected, data schema touched, manifest goal quoted verbatim). The drift-detector and critic both verify the block exists for every touched file.
-
-### Manifest schema validation
-
-`scripts/check_manifest_schema.py` enforces structural minimums on the manifest: `goal` >= 30 chars, `definition_of_done` >= 80 chars, non-empty `expected_outputs` / `non_goals` / `rollback_plan`, broad `allowed_paths` requires non-empty `forbidden_paths`, forbidden status words banned. Runs both at Phase A2 (run-start) and in the policy stage.
-
-### Honest limit - single-model-family correlated blind spots
-
-Critic and verifier run in the same model family. If both share a wrong assumption that fits the manifest, both sign off, auto-promote fires green, and the work ships wrong. Dual-AI (v0.3 cross-family audit) is the only structural defense against this. The v0.5 release does not replace v0.3; it provides single-AI projects a credible alternative when a second model family is not available. Recommended mitigation: periodic sample audit by a different model family on a weekly cadence.
-
----
-
-## 9. The run.log resume mechanism
-
-The `run.log` is the source of truth for "what's done." It is
-append-only. Each line is one stage outcome. The orchestrator parses it
-to decide where to start.
-
-```
-2026-05-09T14:30:00Z | manifest | COMPLETE | human approved
-2026-05-09T14:32:11Z | research | COMPLETE | research.md written
-2026-05-09T14:35:42Z | plan | COMPLETE | plan.md written
-2026-05-09T14:35:50Z | plan | COMPLETE | human approved
-2026-05-09T14:42:01Z | test-write | COMPLETE | failing-tests-report.md written
-2026-05-09T14:51:33Z | execute | FAILED | artifact not produced (or empty)
-```
-
-```mermaid
-stateDiagram-v2
-    [*] --> ReadLog
-    ReadLog --> ParseStages: read .agent-runs/X/run.log
-    ParseStages --> FindResume: collect COMPLETE stage names
-    FindResume --> AllDone: all stages COMPLETE?
-    FindResume --> RunStage: first non-COMPLETE stage
-    AllDone --> WrapUp
-    RunStage --> WriteOutcome: stage handler runs
-    WriteOutcome --> CheckOutcome
-    CheckOutcome --> NextStage: COMPLETE
-    CheckOutcome --> Halt: BLOCKED or FAILED
-    NextStage --> FindResume
-    Halt --> [*]: tell user resume command
-    WrapUp --> [*]
-```
-
-This means:
-
-- A `BLOCKED` or `FAILED` line does **not** mark the stage as done.
-  Re-running picks up at that stage.
-- The user never edits `run.log`. If a stage's outcome is wrong, the fix
-  is in the underlying artifact or manifest, not the log.
-- Crash-safety: if the orchestrator dies mid-stage, the missing
-  `COMPLETE` line means the next run starts at that stage cleanly.
-
----
-
-## 10. File layout - every file explained
-
-```
-agent-pipeline-codex/                        # the plugin
-|-- .codex-plugin/
-|   `-- plugin.json                      # plugin metadata, version
-|-- README.md                            # quick-start
-|-- USER-MANUAL.md                       # operator-facing
-|-- ARCHITECTURE.md                      # this file
-|-- CHANGELOG.md                         # version history
-|-- LICENSE                              # Apache-2.0
-|-- docs/
-|   `-- index.html                       # GitHub Pages landing page
-|-- commands/
-|   |-- pipeline-init.md                 # pipeline-init logic
-|   |-- intake.md                       # draft intake artifact logic
-|   |-- new-run.md                       # new-run logic
-|   `-- run-pipeline.md                  # run-pipeline logic (orchestrator)
-|-- pipelines/
-|   |-- feature.yaml                     # 11-stage feature flow
-|   |-- bugfix.yaml                      # 10-stage bugfix flow
-|   |-- manifest-template.yaml           # blank skeleton
-|   |-- action-classification.yaml       # v0.4 - opt-in judge layer rules
-|   `-- roles/
-|       |-- researcher.md                # surfaces director decisions
-|       |-- planner.md                   # produces plan.md Section 1-7
-|       |-- test-writer.md               # writes failing tests only
-|       |-- executor.md                  # makes tests green
-|       |-- verifier.md                  # independent fresh-context check
-|       |-- manager.md                   # PROMOTE/BLOCK/REPLAN decision
-|       `-- judge.md                     # v0.4 - per-action real-time verdict
-`-- scripts/
-    |-- __init__.py
-    |-- check_allowed_paths.py           # diff vs. manifest allowed_paths
-    |-- check_no_todos.py                # scan for TODO/FIXME/HACK
-    |-- check_adr_gate.py                # ADRs are append-only
-    |-- check_pipeline_control_loop.py   # active-control-state validator
-    |-- final_response_gate.py           # discovers active runs and blocks final responses
-    |-- agent_decision_gate.py           # validates stop/defer/skip intent and writes ledger
-    |-- pipeline_continue.py             # prints next required action
-    |-- stop_validator.py                # shared stop-condition truth validator
-    `-- run_all.py                       # check runner
-```
-
-After `pipeline-init`, your project gets:
-
-```
-<your-project>/
-|-- AGENTS.md                            # scaffolded if absent
-|-- .gitignore                           # adds .agent-runs/
-|-- .pipelines/                          # copy of plugin's pipelines/
-|   |-- feature.yaml
-|   |-- bugfix.yaml
-|   |-- manifest-template.yaml
-|   `-- roles/...
-|-- scripts/policy/                      # copy of plugin's scripts/
-|   |-- __init__.py
-|   |-- check_allowed_paths.py
-|   |-- check_no_todos.py
-|   |-- check_adr_gate.py
-|   |-- check_pipeline_control_loop.py
-|   |-- final_response_gate.py
-|   |-- agent_decision_gate.py
-|   |-- pipeline_continue.py
-|   |-- stop_validator.py
-|   `-- run_all.py
-`-- .agent-runs/                         # gitignored, created on first new-run
-    `-- <run-id>/
-        |-- manifest.yaml
-        |-- research.md
-        |-- plan.md
-        |-- failing-tests-report.md
-        |-- implementation-report.md
-        |-- policy-report.md
-        |-- verifier-report.md
-        |-- manager-decision.md
-        |-- active-control-state.md      # continuation contract
-        |-- decision-ledger.ndjson       # stop/defer/skip/final decision receipts
-        |-- judge-log.yaml               # v0.4 - written when judge layer is active
-        |-- judge-metrics.yaml           # v0.4 - written when judge layer is active
-        |-- judge-decisions/             # v0.4 - one YAML per judged action
-        |   `-- exec-NNN.yaml
-        `-- run.log
-```
-
----
-
-## 11. Extension points
-
-The plugin is designed for projects to extend, not fork. The places to
-extend:
-
-| Extension | Where | Constraint |
-|---|---|---|
-| New pipeline type | `.pipelines/<name>.yaml` | Must use existing role names or add a role file |
-| New role | `.pipelines/roles/<name>.md` | Must produce exactly one named artifact and stop |
-| New policy check | `scripts/policy/check_<name>.py` + entry in `CHECKS` | Exit 0 = pass, non-zero = fail; print to stdout |
-| Project conventions | `AGENTS.md` | Roles read this; the planner is required to honor it |
-| Manifest fields | `.pipelines/manifest-template.yaml` | Add field + inline comment; downstream roles may reference it |
-| Judge classification rules | `.pipelines/action-classification.yaml` | Add entries under the appropriate class; first-match-wins per class; file presence opts the run into the judge layer |
-
-Anti-patterns to avoid:
-
-- Editing the role files mid-run. The contract changes mid-flight and the
-  manager's verdict becomes meaningless.
-- Editing the manifest mid-run. The orchestrator treats the manifest as
-  immutable; if it needs to change, the manager returns REPLAN and you
-  re-issue `new-run`.
-- Adding a stage that produces multiple artifacts. The pipeline's resume
-  logic and the verifier's input both depend on one-artifact-per-stage.
-- Removing the manifest, plan, or manager gates. The plugin is built
-  around three explicit gates; removing one means the run can promote
-  without human review at a critical moment.
-
----
-
-## 12. Why these defaults
-
-Several non-obvious defaults exist because of real failures from prior
-projects.
-
-| Default | Reason |
-|---|---|
-| Three human gates, not two or four | Fewer means autonomous-mode-by-stealth; more means humans rubber-stamp |
-| Manager must cite verifier verbatim | Encouragement and summarization let bad runs PROMOTE |
-| Policy checks exit non-zero halts pipeline | "It's just a warning" is how scope creep gets in |
-| Halt applies to ALL repo state, including unrelated cleanup | Otherwise an agent merges in-flight work while a question is open |
-| `run.log` is append-only | Editing the log to "fix" a stage hides the underlying bug |
-| Subagents have fresh context | Otherwise the executor inherits the planner's blind spots |
-| Manifest has `forbidden_paths` not just `allowed_paths` | Belt-and-suspenders for high-risk dirs (e.g., production configs) |
-| `definition_of_done` is required | Without it, the verifier has no objective check |
-| Director-decisions are surfaced by the researcher, not the planner | The planner picks; if the researcher picked, no human got to weigh in |
-| Cleanroom CI is recommended, not enforced | Some projects don't have Docker available; recommend strongly, don't gate |
-
-If you find yourself wanting to override one of these, that's a real
-decision worth recording in your project's `docs/adr/` directory.
-
----
-
-## 13. Sequence summary - what happens end-to-end
-
-```mermaid
-sequenceDiagram
-    autonumber
-    participant U as "User"
-    participant CC as "Codex Desktop App"
-    participant Plugin as "agent-pipeline-codex plugin"
-    participant Proj as "your project"
-    participant Runs as "agent run directory"
-
-    U->>CC: pipeline-init
-    CC->>Plugin: read pipeline-init command
-    CC->>U: ask for PRD, repo, or description
-    U->>CC: provide project source
-    CC->>Proj: scaffold pipeline files
-    CC->>U: summarize orientation
-
-    U->>CC: intake plain-English task
-    CC->>Plugin: read intake command
-    CC->>Runs: draft intake.md, manifest.yaml, scope-lock.yaml
-    CC->>U: ask user to complete TODOs and validate
-
-    U->>CC: new-run feature my-task
-    CC->>Plugin: read new-run command
-    CC->>Runs: create manifest skeleton
-    CC->>U: ask user to fill manifest
-    U->>Runs: edit manifest.yaml
-
-    U->>CC: run-pipeline feature run-id
-    CC->>Plugin: read run-pipeline command
-    loop for each stage
-        CC->>Runs: read run.log to find resume point
-        alt human gate
-            CC->>U: ask for approval
-            U->>CC: APPROVE or block
-        else policy stage
-            CC->>Proj: run policy checks
-        else agent stage
-            CC->>Plugin: read role file
-            CC->>CC: spawn scoped subagent
-            CC->>Runs: subagent writes artifact
-        end
-        CC->>Runs: append run.log line
-        CC->>Runs: update active-control-state.md
-        CC->>Proj: run final and decision gates
-        alt decision gate blocks
-            CC->>Proj: run pipeline_continue.py
-            CC->>CC: continue to next action
-        else valid stop condition
-            CC->>Runs: append decision-ledger.ndjson
-        end
-    end
-    CC->>U: pipeline complete and manager decision shown
-```
-
----
-
-## 14. Glossary
-
-- **Manifest** - the human-authored contract for a single run. Lists
-  goal, allowed paths, forbidden paths, non-goals, expected outputs,
-  required gates, risk, rollback plan, definition of done, director
-  notes.
-- **Stage** - one entry in the pipeline YAML. Has a `name`, a `role`, an
-  `artifact`, and optionally a `gate` or a `command`.
-- **Role** - the kind of work a stage does. Defined in
-  `.pipelines/roles/<role>.md`.
-- **Artifact** - the single named file a stage produces, written into
-  `.agent-runs/<run-id>/`.
-- **Gate** - a checkpoint where the pipeline halts. Either
-  `human_approval` (operator must type APPROVE) or implicit (a failing
-  policy check or empty artifact).
-- **Subagent** - a fresh Codex Desktop App agent spawned by the orchestrator
-  for a single stage. Has no memory of the orchestrator's session.
-- **Run ID** - `YYYY-MM-DD-<slug>`, the directory name under
-  `.agent-runs/`.
-- **Director** - the human who approves the manifest, the plan, and the
-  manager decision.
-- **Director notes** - free-form section in the manifest where the
-  director records goals, constraints, and prior decisions that the
-  researcher must surface.
-- **Cleanroom CI** - a Docker-based reproduction of the test environment
-  with a fresh dependency set, used to catch "works on my machine"
-  bugs that local pytest misses.
-- **Judge** (v0.4) - a fresh-context subagent whose only job is to
-  evaluate a single proposed executor action against the manifest and
-  return one of four verdicts: `allow`, `block`, `revise`, or
-  `escalate`. Context-isolated from the executor's reasoning chain by
-  design.
-- **Action class** (v0.4) - the risk category assigned to each executor
-  tool call by `.pipelines/action-classification.yaml`. One of
-  `read_only`, `reversible_write`, `external_facing`, or `high_risk`.
-  Determines whether the action is auto-executed, judged, or
-  judged-plus-human-confirmed.
-- **Escalation rate** (v0.4) - the fraction of executor actions that
-  reach a human via the judge layer. The operator's tuning signal:
-  too low means the classification rules are too permissive; too high
-  means the rules are too tight and trust is being eroded by the
-  cookie-banner effect.
+- Canonical skill names only.
+- Required references and templates exist.
+- Public manifest metadata matches the beta release.
+- Active docs do not contain stale standalone product names.
+- Package-relative file paths stay short enough for Windows marketplace
+  installs.

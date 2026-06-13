@@ -5,7 +5,10 @@ argument-hint: (none - interactive)
 
 # pipeline-init - onboard a project for agentic pipeline runs
 
-You are onboarding a project for use with the agentic pipeline plugin. The user has one of three things and you need to figure out which, then act on it. **You do not skip the orientation step. You do not silently scaffold based on assumptions.**
+You are onboarding a project for use with the ScottDevSkills Agent Pipeline.
+The user has one of three things and you need to figure out which, then act on
+it. **You do not skip the orientation step. You do not silently scaffold based
+on assumptions.**
 
 ## What to do
 
@@ -64,13 +67,15 @@ After the user picks an option, ask for the actual content if not already provid
 
 Once the project's working directory is identified and the orientation is settled, scaffold:
 
-1. **`.pipelines/` directory** - copy from the installed skill's `references/pipeline-payload/pipelines/` directory:
+1. **`.pipelines/` directory** - copy from the installed plugin payload
+   directory `../../p/p/`, resolved relative to `skills/pipeline-init/`:
    - `feature.yaml`
    - `bugfix.yaml`
    - `manifest-template.yaml`
    - `roles/` (all role files)
 
-2. **`scripts/policy/` directory** - copy from the installed skill's `references/pipeline-payload/scripts/` directory:
+2. **`scripts/policy/` directory** - copy from the installed plugin payload
+   directory `../../p/s/`, resolved relative to `skills/pipeline-init/`:
    - `__init__.py`
    - `check_allowed_paths.py`
    - `check_actions_budget.py`

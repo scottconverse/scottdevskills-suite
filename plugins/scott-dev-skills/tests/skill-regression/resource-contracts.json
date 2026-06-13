@@ -30,9 +30,10 @@
   {
     "skill": "pipeline-init",
     "required_files": [
-      "skills/pipeline-init/references/pipeline-payload/pipelines/templates/audit-gate-template.md",
-      "skills/pipeline-init/references/pipeline-payload/pipelines/templates/audit-protocol-template.md",
-      "skills/pipeline-init/references/pipeline-payload/pipelines/templates/5-lens-self-audit-template.md"
+      "p/p/templates/audit-gate-template.md",
+      "p/p/templates/audit-protocol-template.md",
+      "p/p/templates/5-lens-self-audit-template.md",
+      "p/s/run_all.py"
     ]
   },
   {

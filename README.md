@@ -43,7 +43,7 @@ ScottDevSkills is distributed as a Codex marketplace repository.
 For a first-time install, add the marketplace and then install the plugin:
 
 ```powershell
-codex plugin marketplace add scottconverse/scottdevskills-suite --ref main
+codex plugin marketplace add scottconverse/scottdevskills-suite --ref main --sparse plugins/scott-dev-skills
 codex plugin add scott-dev-skills@scottdevskills
 ```
 

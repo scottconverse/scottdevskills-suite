@@ -21,8 +21,8 @@ Route pipeline requests to the smallest stage skill that matches intent.
 
 ## Source Of Truth
 
-This suite uses the namespaced Agent Pipeline for Codex materials as its source
-for pipeline assets and behavior. Read `references/README.md`,
+This suite ships the Agent Pipeline as native ScottDevSkills skills plus a
+short bundled payload for project initialization. Read `references/README.md`,
 `references/USER-MANUAL.md`, or `references/ARCHITECTURE.md` only when a
 concrete pipeline question needs that depth.
 

@@ -1,4 +1,4 @@
-#!/usr/bin/env python3
+﻿#!/usr/bin/env python3
 # SPDX-License-Identifier: Apache-2.0
 """Policy: release docs must not assign current rung to future-rung work."""
 
@@ -85,7 +85,7 @@ def evaluate_release_docs_consistency(
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("--version", action="version", version="agent-pipeline-codex 0.9.1")
+    parser.add_argument("--version", action="version", version="scott-dev-skills 0.1.0-beta.1")
     parser.add_argument("--run", help="Pipeline run id under .agent-runs/.")
     args = parser.parse_args()
 

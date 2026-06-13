@@ -13,8 +13,9 @@ expected directories.
 ## Workflow
 
 1. Read `references/pipeline-init.md`.
-2. Copy the required `references/pipeline-payload/` templates and scripts into
-   the target repo according to that reference.
+2. Copy the required bundled payload from `../../p/` into the target repo
+   according to that reference. The short internal path is intentional: it keeps
+   Windows marketplace installs below path-length limits.
 3. Preserve existing project instructions and merge starter guidance carefully.
 4. Do not start a run unless explicitly requested after initialization.
 

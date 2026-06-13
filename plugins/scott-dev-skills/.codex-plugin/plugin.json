@@ -1,6 +1,6 @@
 {
   "name": "scott-dev-skills",
-  "version": "0.1.0-beta.1+codex.20260613060958",
+  "version": "0.1.0-beta.1",
   "description": "Codex-native development skills for audits, walkthroughs, pipelines, prompt quality, context discipline, and optional gate templates.",
   "author": {
     "name": "Scott Converse",

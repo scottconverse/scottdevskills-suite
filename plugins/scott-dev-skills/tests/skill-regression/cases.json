@@ -1,0 +1,68 @@
+[
+  {
+    "id": "audit-lite-positive",
+    "prompt": "Quick audit this fix before I merge it.",
+    "expected_skill": "audit-lite",
+    "kind": "positive"
+  },
+  {
+    "id": "audit-full-positive",
+    "prompt": "Do a full release readiness audit of this repo.",
+    "expected_skill": "audit-full",
+    "kind": "positive"
+  },
+  {
+    "id": "walkthrough-positive",
+    "prompt": "Walk through the UI with Playwright and find wiring gaps.",
+    "expected_skill": "walkthrough",
+    "kind": "positive"
+  },
+  {
+    "id": "pipeline-init-positive",
+    "prompt": "Initialize this repo for the agent pipeline.",
+    "expected_skill": "pipeline-init",
+    "kind": "positive"
+  },
+  {
+    "id": "run-pipeline-positive",
+    "prompt": "Resume the existing pipeline run from .agent-runs.",
+    "expected_skill": "run-pipeline",
+    "kind": "positive"
+  },
+  {
+    "id": "status-positive",
+    "prompt": "Show the current pipeline run status without resuming it.",
+    "expected_skill": "show-run-status",
+    "kind": "positive"
+  },
+  {
+    "id": "prompt-quality-positive",
+    "prompt": "Lint this prompt and design regression evals for it.",
+    "expected_skill": "prompt-quality",
+    "kind": "positive"
+  },
+  {
+    "id": "context-positive",
+    "prompt": "This session is getting long; preserve state and reduce context burn.",
+    "expected_skill": "context-discipline",
+    "kind": "positive"
+  },
+  {
+    "id": "hardgate-positive",
+    "prompt": "Create optional enforcement templates for this repo's release gates.",
+    "expected_skill": "hardgate-templates",
+    "kind": "positive"
+  },
+  {
+    "id": "audit-collision",
+    "prompt": "Audit this one bug fix, not a full project review.",
+    "expected_skill": "audit-lite",
+    "kind": "collision"
+  },
+  {
+    "id": "walkthrough-collision",
+    "prompt": "Do a product walkthrough and verify every visible button is wired.",
+    "expected_skill": "walkthrough",
+    "kind": "collision"
+  }
+]

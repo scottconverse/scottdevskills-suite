@@ -1,0 +1,1021 @@
+# agent-pipeline-codex - User Manual
+
+A Codex Desktop App plugin that orchestrates multi-stage agentic work with three human-approval gates. Built from real lessons across multi-week agent projects where autonomous runs go wrong silently and "manager-PROMOTE" failures slip past CI.
+
+**Version:** 0.9.1
+**License:** Apache 2.0
+
+---
+
+## Table of contents
+
+1. [Who this is for](#who-this-is-for)
+2. [What you get](#what-you-get)
+3. [Installation](#installation)
+4. [Onboarding a project - `pipeline-init`](#onboarding-a-project)
+5. [Intake drafting - `intake`](#intake-drafting)
+6. [Running a pipeline](#running-a-pipeline)
+7. [The three human gates](#the-three-human-gates)
+8. [Customizing for your project](#customizing-for-your-project)
+9. [Resuming a halted run](#resuming-a-halted-run)
+10. [The judge layer (v0.4)](#the-judge-layer-v04)
+11. [Single-AI hardening (v0.5)](#single-ai-hardening-v05)
+12. [Hooked pipeline autonomy (v0.7)](#hooked-pipeline-autonomy-v07)
+13. [Troubleshooting](#troubleshooting)
+14. [Glossary](#glossary)
+
+---
+
+## Who this is for
+
+Developers using Codex Desktop App (or compatible agentic AI tooling) who want a structural pattern for getting multi-step agent work done correctly the first time. The plugin is most useful when:
+
+- You work on a project across multiple Codex Desktop App sessions
+- Single-shot agent prompts produce work that drifts from your project's conventions
+- You've been burned by "manager said PROMOTE but CI was red" failures
+- You want explicit human-approval points without managing the workflow yourself
+
+The plugin assumes you have:
+
+- A repo (or are about to create one)
+- A test framework configured
+- A lint/format toolchain
+- (Optional but recommended) A `AGENTS.md` capturing your project's conventions
+- (Optional) ADRs in `docs/adr/`
+
+If you don't have those yet, `pipeline-init` helps you scaffold them.
+
+## What you get
+
+Eight Codex skills: one overview/router plus seven concrete workflow skills.
+
+| Skill | Purpose |
+| :--- | :--- |
+| `agent-pipeline` | Overview and routing. Explains the plugin and points to the specific workflow skill. |
+| `pipeline-init` | Onboard a project. Accepts a PRD path, a repo URL, or a description paragraph. Scaffolds `.pipelines/`, `scripts/policy/`, and `AGENTS.md` if missing. |
+| `intake` | Draft starting run artifacts from a plain-English product, repo, design, task, bug, or feature description. Does not start the pipeline. |
+| `new-run <type> <slug>` | Initialize a new pipeline run. Creates `.agent-runs/<run-id>/manifest.yaml` and `scope-lock.yaml` from templates and asks you to fill them in. |
+| `validate-manifest` | Preflight a run manifest against the same schema used by the policy stage. |
+| `run-pipeline <type> <run-id>` | Orchestrate a pipeline run end-to-end. Stops at human gates and on failure. Resumable. |
+| `show-run-status <run-id>` | Read-only summary of a run's current stage, stop condition, next action, and artifacts. |
+| `audit-init` | (v0.3) Scaffold dual-AI audit-handoff infrastructure for projects where one AI implements and another audits. |
+
+Three default pipeline definitions:
+
+- **`feature`** - 11 stages: manifest -> research -> plan -> test-write -> execute -> policy -> verify -> drift-detect -> critique -> auto-promote -> manager
+- **`bugfix`** - 10 stages: manifest -> research -> reproduce -> patch -> policy -> verify -> drift-detect -> critique -> auto-promote -> manager
+- **`module-release`** - six-phase release pipeline with Phase 0 preflight + Phase 2 local rehearsal (v0.2+)
+
+Thirteen self-contained role files (markdown) - each tells a fresh Codex session exactly what to do and what is forbidden: `researcher`, `planner`, `test-writer`, `executor` (with v0.5 pre-edit fact-forcing), `verifier`, `drift-detector` (v0.5), `critic` (v0.5), `manager` (auto-promote-aware at v0.5), `judge` (v0.4 opt-in), `preflight-auditor` (v0.2), `local-rehearsal` (v0.2), `cross-agent-auditor` (v0.3), `implementer-pre-push` (v0.3).
+
+Policy and control scripts (Python, stdlib only):
+
+- `check_manifest_schema.py` - v0.5 strict manifest contract validator
+- `check_scope_lock.py` - v0.5.9 canonical release-plan rung validator
+- `check_rung_file_ownership.py` - v0.5.9 future-rung path and commit-subject blocker
+- `check_release_docs_consistency.py` - v0.5.9 docs vs locked rung consistency gate
+- `check_execute_readiness.py` - pre-verify DoD readiness gate; blocks policy/verify when execute only completed a partial slice
+- `check_allowed_paths.py` - manifest-driven path enforcement
+- `check_no_todos.py` - no TODO/FIXME/HACK in source
+- `check_adr_gate.py` - ADRs are append-only
+- `check_actions_budget.py` - GitHub Actions cost-discipline gate
+- `check_pipeline_control_loop.py` - validates active control-state artifacts
+- `final_response_gate.py` - blocks final responses while an authorized run must continue
+- `agent_decision_gate.py` - validates stop/defer/skip decisions and writes the decision ledger
+- `pipeline_continue.py` - prints the next executable action for an active run
+- `stop_validator.py` - v0.5.10 shared stop-condition truth validator used by the three continuation gates
+- `check_decision_ledger.py` - validates versioned `decision-ledger.ndjson` rows
+- `show_run_status.py` - prints a read-only run status summary
+- `auto_promote.py` - v0.5 six-condition machine-checkable promote
+- `validate_manifest.py` - standalone manifest preflight wrapper
+- `run_all.py` - combined runner
+
+Optional Codex lifecycle hooks (v0.7):
+
+- `SessionStart` - adds active run context when a Codex session starts or resumes.
+- `UserPromptSubmit` - warns on stale standalone skill names and blocks explicit gate-bypass prompts during active runs.
+- `PreToolUse` - warns or blocks risky tool calls before execution.
+- `PermissionRequest` - denies vague/destructive approval requests and otherwise leaves normal approvals to Codex.
+- `PostToolUse` - adds corrective context after failed commands or changed pipeline contract artifacts.
+- `Stop` - continues the session when an active run is not at a valid stop condition.
+
+## Installation
+
+### As a Codex Desktop App plugin (recommended)
+
+Install through the Codex Desktop App plugin flow once the repository is published.
+
+### Manual install (local clone)
+
+If your Codex Desktop App setup supports local plugin paths:
+
+```bash
+git clone https://github.com/scottconverse/agent-pipeline-codex.git ~/agent-pipeline-codex-plugin
+```
+
+Then add the path to your Codex plugin configuration.
+
+### Verifying which release is installed
+
+For the plugin itself, repository tests are not enough. A release is installed
+only after a fresh Codex process proves the plugin and namespaced skills are
+visible:
+
+```bash
+python scripts/verify_plugin_release.py --live
+```
+
+The required success lines are `PLUGIN-RELEASE-VERIFY: PASSED` and the nested
+`PLUGIN-INSTALL-ACCEPTANCE: PASSED`. The live check verifies that
+`agent-pipeline-codex` appears under Available plugins, that all seven expected
+namespaced skills load, and that no plugin-specific loader warnings were
+emitted.
+
+The live check combines deterministic source/installed-cache verification with
+repeated fresh Codex probes. A single model enumeration miss is kept in the
+transcript for auditability, but the gate fails only when repeated probes cannot
+observe the complete namespaced plugin surface or a plugin-specific loader
+warning appears.
+
+When starting a fresh project session, verify the namespaced plugin skills
+explicitly:
+
+```text
+agent-pipeline-codex:agent-pipeline
+agent-pipeline-codex:intake
+agent-pipeline-codex:pipeline-init
+agent-pipeline-codex:new-run
+agent-pipeline-codex:run-pipeline
+agent-pipeline-codex:audit-init
+agent-pipeline-codex:show-run-status
+agent-pipeline-codex:validate-manifest
+```
+
+Do not accept standalone names such as `agent-pipeline` or `run-pipeline` as
+proof that the current plugin is active. Standalone skills under
+`$CODEX_HOME/skills` can exist for compatibility and can drift from the plugin
+cache.
+
+For GitHub Actions or another headless environment that cannot see the local
+Codex Desktop plugin registry, run:
+
+```bash
+python scripts/verify_plugin_release.py --source-only
+```
+
+This proves tests, source skill packaging, and source plugin layout without
+claiming the local Desktop plugin is installed.
+
+Several v0.5 policy scripts ship a `--version` flag for sanity-checking the install:
+
+```bash
+python scripts/policy/auto_promote.py --version
+python scripts/policy/check_manifest_schema.py --version
+python scripts/policy/show_run_status.py --version
+```
+
+Each prints the bundled `agent-pipeline-codex` version and exits 0. The flag
+fires before any other argument validation, so it works on `auto_promote.py`
+without supplying `--run`. Use it to confirm a project actually has the current
+scripts and not stale copies from an earlier `pipeline-init`.
+
+If the script doesn't recognize `--version` (argparse prints a usage error and exits 2), the install is pre-v0.5. Re-run `pipeline-init` to refresh the scripts from the plugin source.
+
+## Onboarding a project
+
+Drop into your project root (or a fresh empty directory) and ask Codex to use the skill:
+
+```
+Use pipeline-init for this project.
+```
+
+The plugin asks: **what do you have?**
+
+You answer with one of three things:
+
+### Path 1 - A PRD or spec document
+
+You have a written specification (markdown, PDF text, or pasted contents). The plugin reads it and:
+
+1. Extracts project name, purpose, target audience, primary capabilities, technical constraints
+2. Determines a working directory (current dir if non-empty, or scaffolds a subdirectory)
+3. Scaffolds `AGENTS.md` derived from the PRD (if you don't already have one)
+4. Installs `.pipelines/` and `scripts/policy/`
+5. Adds `.agent-runs/` to `.gitignore`
+6. Hands off to `new-run feature <slug>` with a slug suggestion derived from the PRD
+
+### Path 2 - An existing repo (URL or local path)
+
+You have a project somewhere - a GitHub URL, a local clone, anywhere. The plugin:
+
+1. Clones the repo (or reads from the local path)
+2. Inspects `README`, `AGENTS.md`, `pyproject.toml` / `package.json` / etc., `.github/workflows/`, `docs/adr/`, and recent commits
+3. Produces a **project orientation summary** - what it found, what's missing, what the gaps mean for downstream pipeline behavior
+4. Asks you to confirm or correct the summary
+5. Installs `.pipelines/` and `scripts/policy/` (preserves your existing `AGENTS.md` and other config)
+
+### Path 3 - A description paragraph
+
+You have an idea - a paragraph or two describing what you want to build. The plugin asks:
+
+- **New project to scaffold from scratch?** It synthesizes a minimal PRD from the description and treats it as Path 1.
+- **Context for an existing repo?** It asks for the repo URL/path and treats it as Path 2 (your description goes into the orientation summary as user-provided context).
+
+## Intake drafting
+
+Use `agent-pipeline-codex:intake` when you have a plain-English description but
+not yet enough structure for a manifest.
+
+Example:
+
+```text
+Use agent-pipeline-codex:intake for Add account deletion to settings. Include
+tests, docs, copy review, and a rollback path. Do not change billing.
+```
+
+The skill creates a draft run directory with:
+
+- `intake.md` - source description and conservative interpretation
+- `manifest.yaml` - draft fields filled only where the request supports them
+- `scope-lock.yaml` - conservative TODO placeholders for canonical scope facts
+- `intake-questions.md` - missing answers required before validation
+
+This is intentionally not executable authority. `intake` does not validate the
+manifest, approve the manifest, create a directive, run agents, or start
+implementation. The next step is to complete the TODOs, then run:
+
+```text
+Use agent-pipeline-codex:validate-manifest for <run-id>.
+```
+
+Only after validation passes should you run:
+
+```text
+Use agent-pipeline-codex:run-pipeline for <run-id>.
+```
+
+## Running a pipeline
+
+Once onboarded, every piece of agent work follows the same shape: define what you're doing, let the pipeline orchestrate it, approve or reject at three checkpoints.
+
+### Control-loop gate
+
+During an authorized run, `run-pipeline` keeps working until a valid stop condition is recorded in `.agent-runs/<run-id>/active-control-state.md`, the shared `stop_validator.py` proves the stop from current stage/run evidence, `scripts/policy/check_pipeline_control_loop.py --run <run-id>` passes, `scripts/policy/final_response_gate.py --require-active-run` prints `final_response_gate: ALLOW`, and `scripts/policy/agent_decision_gate.py --intent <intent> --claimed-stop-condition <condition> --write-ledger` allows the specific stop, defer, skip, or final-response decision.
+
+Valid stop conditions are: `human_approval_gate`, `failed_gate_needs_user_direction`, `destructive_action`, `credential_or_secret_required`, `scope_conflict`, `external_system_unavailable_after_retry`, and `user_explicitly_paused_or_stopped`.
+
+Successful push, green CI, draft PR status, recommended next action, open caveats, and release/tag after all required gates pass are not stop conditions. `Open Caveats / Release Risks` blocks completion unless each item is fixed or marked `INTENTIONAL DEFERRAL:` with cited authorization.
+
+### Step 1 - Initialize a run
+
+```
+new-run feature add-search-endpoint
+```
+
+This creates `.agent-runs/2026-05-09-add-search-endpoint/manifest.yaml` and `.agent-runs/2026-05-09-add-search-endpoint/scope-lock.yaml` from templates. The manifest is the **work contract**; the scope lock is the **canonical rung contract**.
+
+### Step 2 - Fill in the manifest and scope lock
+
+Open `.agent-runs/2026-05-09-add-search-endpoint/manifest.yaml` in your editor. The fields you fill in:
+
+| Field | What goes here |
+| :--- | :--- |
+| `goal` | One sentence, user-facing. The thing release notes will say. |
+| `branch` | Git branch the run will commit to. |
+| `allowed_paths` | Path prefixes this run may modify. Be specific. |
+| `forbidden_paths` | Paths this run must NOT touch. Common: `docs/adr/`, version files, CI configs. |
+| `non_goals` | What's out of scope. Keep the agent honest. |
+| `expected_outputs` | Testable artifacts and behaviors that must exist when done. |
+| `risk` | low / medium / high. |
+| `rollback_plan` | What to do if this gets reverted. |
+| `definition_of_done` | One paragraph: the precise bar the work clears. |
+| `director_notes` | Optional. Things you want the researcher to surface explicitly (e.g., "check tests/ for sync vs async assumptions"). |
+
+The manifest template has inline comments explaining every field.
+
+Then open `.agent-runs/2026-05-09-add-search-endpoint/scope-lock.yaml` and copy the current rung facts from the canonical release plan:
+
+| Field | What goes here |
+| :--- | :--- |
+| `current_rung` | The exact rung number, e.g. `0.6`. |
+| `canonical_source` | The release-plan path, e.g. `docs/spec/release-plan.md`. |
+| `rung_title` | The exact title from the release plan. |
+| `proves` | The exact proof statement for the rung. |
+| `required_modules` | Modules/package areas named by the rung. |
+| `allowed_feature_terms` | Terms that belong to this rung. |
+| `forbidden_feature_terms_without_replan` | Future-rung or out-of-scope terms that require replan if they appear in prompt, paths, docs, or commit message. |
+| `scope_bullets` / `exit_criteria` | Optional exact bullets copied from the release plan. |
+
+### Step 3 - Validate the manifest and scope lock
+
+```
+validate-manifest --run 2026-05-09-add-search-endpoint
+python scripts/policy/check_scope_lock.py --run 2026-05-09-add-search-endpoint
+```
+
+Fix every reported violation before starting the pipeline. This uses the same
+strict schema gate as the policy stage, including unsupported YAML syntax,
+minimum contract length, forbidden status words, and broad-path warnings.
+
+`check_scope_lock.py` catches the other cheap-but-expensive failure: starting
+the wrong rung. If v0.6 is "Summary + signed records" in the release plan, a
+scope lock or prompt claiming v0.6 publish-dashboard work fails with
+`SCOPE_CONFLICT`.
+
+### Step 4 - Run the pipeline
+
+```
+run-pipeline feature 2026-05-09-add-search-endpoint
+```
+
+The orchestrator reads `.pipelines/feature.yaml` and walks each stage:
+
+```
+manifest        -> human gate (you approve)
+research        -> researcher subagent -> research.md
+plan            -> planner subagent -> plan.md
+                -> human gate (you approve plan)
+test-write      -> test-writer subagent -> failing-tests-report.md
+execute         -> executor subagent -> implementation-report.md (commits made)
+                -> check_execute_readiness.py must pass before policy
+policy          -> bash -> policy-report.md
+verify          -> verifier subagent -> verifier-report.md
+manager         -> manager subagent -> manager-decision.md
+                -> human gate (you approve PROMOTE / BLOCK / REPLAN)
+```
+
+Each stage outcome appends to `.agent-runs/<run-id>/run.log`.
+
+### Read-only status
+
+When you need orientation without resuming a run, use:
+
+```
+show-run-status 2026-05-09-add-search-endpoint
+```
+
+It reports the last run-log event, active control state, stop condition, next
+required action, and artifact list without mutating the project.
+
+### Step 5 - Approve or send back at each gate
+
+Three explicit human-approval moments:
+
+1. **Manifest gate** (before any agent runs) - you confirm the manifest captures the work correctly.
+2. **Plan gate** (after researcher + planner) - you confirm the planner's approach.
+3. **Manager gate** (after the manager produces a verdict) - you confirm PROMOTE or reject.
+
+Each gate is a one-question prompt: type **APPROVE** or describe what should change. Describing changes halts the pipeline.
+
+## Directive contracts (v0.6)
+
+Directive contracts are an opt-in way to replace reflexive gate clicking with
+machine-checked pre-approval. Copy `pipelines/directive-template.yaml` to
+`.agent-runs/<run-id>/directive.yaml` before starting a run.
+
+When the directive is present at run start, the runner:
+
+1. Hashes `directive.yaml` and binds the hash into `run.log`.
+2. Compares `manifest.yaml` and `scope-lock.yaml` against the directive's
+   `preapproved` copies.
+3. Auto-approves the manifest gate only on exact parsed-YAML match.
+4. Checks `plan.md` against `acceptance.plan` assertions after the planner
+   writes it.
+5. Extends `auto_promote.py` with `acceptance.manager` assertions in addition
+   to the six existing conditions.
+
+Fallback behavior is conservative. If the directive is absent, malformed,
+non-conformant, unsupported, or tampered with after the run starts, the old
+interactive gate fires. For manifest/scope mismatch, the prompt includes a
+unified diff so you see exactly what diverged. For hash mismatch, resume halts
+until you explicitly acknowledge the integrity change.
+
+Supported assertions:
+
+- `regex` over an artifact.
+- `contains` exact text.
+- `section` with minimum Markdown section body length.
+- `artifact_exists`.
+- `callable`, limited to registered local Python functions.
+
+### Authoring a directive
+
+The safe path is to hand-author the directive and the run artifacts together
+before `run-pipeline` starts. `new-run` generates `manifest.yaml` from
+`pipelines/manifest-template.yaml`, so `preapproved.manifest` must match the
+actual generated manifest shape exactly. If you write `directive.yaml` only
+after `new-run` has already produced a manifest, the directive can still be
+useful as a mechanical contract, but it is retroactive documentation rather
+than true pre-authorization.
+
+Recommended workflow:
+
+1. Draft `directive.yaml` first from `pipelines/directive-template.yaml`.
+2. Copy the exact `preapproved.manifest` object into
+   `.agent-runs/<run-id>/manifest.yaml`.
+3. Copy the exact `preapproved.scope_lock` object into
+   `.agent-runs/<run-id>/scope-lock.yaml`.
+4. Run `run-pipeline`; the conformance gate compares parsed YAML objects, so
+   comments and key order do not matter, but values and structure do.
+
+Example directive excerpt and matching manifest:
+
+```yaml
+# .agent-runs/2026-05-16-directive/manifest.yaml
+pipeline_run:
+  goal: "Ship directive auto approval safely."
+  expected_outputs:
+    - "Directive auto approval is documented"
+  definition_of_done: "Docs, tests, and policy checks pass."
+  non_goals:
+    - "No platform approval bypass"
+  rollback_plan: "Remove directive.yaml"
+  allowed_paths:
+    - "scripts/"
+    - "tests/"
+    - "docs/"
+  forbidden_paths: []
+```
+
+```yaml
+# .agent-runs/2026-05-16-directive/directive.yaml excerpt
+preapproved:
+  manifest:
+    pipeline_run:
+      goal: "Ship directive auto approval safely."
+      expected_outputs:
+        - "Directive auto approval is documented"
+      definition_of_done: "Docs, tests, and policy checks pass."
+      non_goals:
+        - "No platform approval bypass"
+      rollback_plan: "Remove directive.yaml"
+      allowed_paths:
+        - "scripts/"
+        - "tests/"
+        - "docs/"
+      forbidden_paths: []
+```
+
+### Source and scaffold paths
+
+In this plugin source repo, policy scripts live under `scripts/`. When
+`pipeline-init` installs the pipeline into a project, it copies those scripts to
+`scripts/policy/`. Orchestrator examples such as
+`python scripts/policy/check_directive_conformance.py --run <run-id>` refer to
+the installed project layout; source-tree tests import the canonical `scripts/`
+modules directly.
+
+Worked example:
+
+```yaml
+version: 1
+author:
+  name: "Scott Converse"
+authority:
+  type: "design_doc"
+  reference: "docs/design/v-next-directive-contract.md"
+preapproved:
+  manifest:
+    pipeline_run:
+      goal: "Ship directive auto approval safely."
+      expected_outputs:
+        - "Directive auto approval is documented"
+      definition_of_done: "Docs, tests, and policy checks pass."
+      non_goals:
+        - "No platform approval bypass"
+      rollback_plan: "Remove directive.yaml"
+      allowed_paths: ["scripts/", "tests/", "docs/"]
+      forbidden_paths: []
+  scope_lock:
+    canonical_source: "docs/design/v-next-directive-contract.md"
+    current_rung: "directive-contract"
+    proof_statement: "Only directive contract work is in scope."
+    allowed_feature_terms: ["directive"]
+    forbidden_future_rung_terms: []
+    scope_bullets: ["Implement deterministic directive checks."]
+    exit_criteria: ["Directive checks pass."]
+acceptance:
+  plan:
+    - id: "plan-has-implementation"
+      type: "section"
+      artifact: "plan.md"
+      heading: "Implementation"
+      min_chars: 120
+    - id: "plan-names-tests"
+      type: "regex"
+      artifact: "plan.md"
+      pattern: "(pytest|failing-tests-report\\.md)"
+  manager:
+    - id: "verifier-covers-outputs"
+      type: "callable"
+      name: "verifier_covers_manifest_expected_outputs"
+```
+
+This does not weaken the judge layer. A directive cannot pre-authorize a
+future high-risk tool call, a judge `escalate`, a credential request, or a
+platform approval prompt. Those remain in-run human surfaces.
+
+Migration: existing projects do nothing. Adopting projects add
+`directive.yaml` to a run directory. Bisecting is safe because removing the
+file restores the prior behavior.
+
+## The three human gates
+
+The gates exist because every project this pattern was tested on had at least one stage where the agent silently picked an architectural decision that should have been a human call. The gates force the conversation.
+
+| Gate | Catches |
+| :--- | :--- |
+| **Manifest** | Wrong scope, missing constraints, fuzzy DoD, missing director_notes |
+| **Plan** | Wrong pattern choice, scope expansion in Section 2/Section 3, missing risk mitigation, untestable contracts |
+| **Manager** | "PROMOTE" on incomplete work, missing verifier evidence, ignored AGENTS.md non-negotiables |
+
+The manager gate is the most load-bearing. The manager role's hard rules forbid soft-promotion, encouragement, and summarization - every PROMOTE must cite verbatim verifier evidence.
+
+## Customizing for your project
+
+After `pipeline-init`, the files in your project (`.pipelines/`, `scripts/policy/`, `AGENTS.md`) are **yours**. The plugin's workflow skills work against whatever's in those directories.
+
+### Common customizations
+
+- **Edit role files** to reference your project's specific ADR conventions, test patterns, lint rules.
+- **Add project-specific policy checks** alongside the generic ones (e.g., a `check_my_module_boundaries.py`). Add the new check name to the `CHECKS` list in `scripts/policy/run_all.py`.
+- **Add new pipeline types** by creating `.pipelines/<your-type>.yaml`. The orchestrator picks them up automatically - `run-pipeline <your-type> <run-id>` works.
+- **Customize the manifest template** to add project-specific fields. The agents will see them in the manifest.
+
+### Adding a new pipeline type
+
+To add (for example) a `refactor` pipeline:
+
+```yaml
+# .pipelines/refactor.yaml
+pipeline: refactor
+
+stages:
+  - name: manifest
+    role: human
+    artifact: manifest.yaml
+    gate: human_approval
+
+  - name: research
+    role: researcher
+    artifact: research.md
+    # researcher gets a researcher.md role file with refactor-specific focus
+
+  - name: plan
+    role: planner
+    artifact: plan.md
+    gate: human_approval
+
+  - name: behavior-snapshot
+    role: test-writer
+    artifact: behavior-snapshot.md
+    # captures EXISTING behavior as tests before any refactor
+
+  - name: refactor
+    role: executor
+    artifact: implementation-report.md
+
+  - name: policy
+    role: pipeline
+    command: python scripts/policy/run_all.py --run {run_id}
+    artifact: policy-report.md
+
+  - name: verify
+    role: verifier
+    artifact: verifier-report.md
+
+  - name: manager
+    role: manager
+    artifact: manager-decision.md
+    gate: human_approval
+```
+
+Then use it: `new-run refactor extract-auth-module` -> fill manifest -> `run-pipeline refactor 2026-05-09-extract-auth-module`.
+
+## Resuming a halted run
+
+The pipeline writes append-only progress to `.agent-runs/<run-id>/run.log`. Re-invoking `run-pipeline <type> <run-id>` with the same arguments:
+
+1. Reads the log
+2. Identifies the first stage WITHOUT a `COMPLETE` entry
+3. Resumes from there
+
+`FAILED` and `BLOCKED` stages count as incomplete, so they re-run.
+
+This means:
+
+- After a policy failure -> fix the violation, re-run, policy re-executes.
+- After a verifier marks a criterion `NOT MET` -> manager will likely return BLOCK or REPLAN; address and re-run; pipeline redoes execute -> policy -> verify -> manager.
+- After a human gate `BLOCKED` -> address the requested change in commits, then re-run; the gate question fires again.
+
+## The judge layer (v0.4)
+
+The judge layer is **real-time action-level supervision inside the executor stage**. It is opt-in: if `.pipelines/action-classification.yaml` exists in your project, the orchestrator detects it at run start and uses Handler 3a (classify -> judge -> execute) instead of Handler 3 for the executor stage. If the file is absent, the executor stage runs unchanged from v0.3.
+
+The judge catches a failure mode the other gates can't: unauthorized actions that execute before the policy or verifier can see them. Destructive commands (`rm -rf`, `DROP TABLE`), external writes (`gh pr create`, `docker push`), force pushes, and credential-touching operations are intercepted at the action boundary and evaluated against the manifest.
+
+### Enabling it
+
+Two ways:
+
+**Via `pipeline-init` (recommended).** When `pipeline-init` runs on a new or existing project, it offers to scaffold `.pipelines/action-classification.yaml` along with the rest of the pipeline files. If you accept, the judge layer is enabled. If you decline, you can enable it later by copying the file from the plugin: `cp <plugin-path>/pipelines/action-classification.yaml .pipelines/`.
+
+**Manually.** Copy `pipelines/action-classification.yaml` from the plugin install into your project's `.pipelines/` directory. The next run after the copy lands will use the judge layer.
+
+Disable by deleting the file. The next run reverts to v0.3 executor behavior.
+
+### Customizing the classification rules
+
+The shipped `action-classification.yaml` covers the common dangerous and external-facing patterns: `rm -rf`, `git push --force`, `npm publish`, `kubectl apply`, etc. Your project will have its own:
+
+- Your project's deploy command - add it under `high_risk`.
+- Your project's local preview server - add it under `reversible_write` (it's a side-effect-free local process).
+- Your project's specific API endpoints accessed via `curl` - already caught by the generic `curl -X POST` rule, but you can add narrower rules for specific endpoints that you want named for clearer judge reasoning.
+
+Edit order matters: rules are evaluated top-to-bottom **within each class**, and class priority is `high_risk` -> `external_facing` -> `reversible_write` -> `read_only`. If you want a particular `gh release create` to be `high_risk` (because publishing a release is irreversible in your project), move that rule into the `high_risk` block.
+
+When in doubt: classify conservatively. The cost of a false `high_risk` classification is one extra human confirm; the cost of a missed `high_risk` is the Lindy 14-email case.
+
+### Reading judge-log.yaml
+
+Every action - auto-allowed or judged - gets one entry in `.agent-runs/<run-id>/judge-log.yaml`:
+
+```yaml
+actions:
+  - action_id: "exec-001"
+    tool: bash
+    arguments: "cat src/auth/models.py"
+    class: read_only
+    disposition: auto_allow
+    timestamp: "2026-05-11T14:30:00Z"
+  - action_id: "exec-007"
+    tool: bash
+    arguments: "git push origin main"
+    class: high_risk
+    disposition: judged_revise
+    judge_verdict: revise
+    judge_reason: "Manifest authorizes implementation on feature branch; main push is not in scope."
+    revision_instruction: "Push to feature/judge-layer-v0.4 instead of main."
+    timestamp: "2026-05-11T14:35:12Z"
+```
+
+The seven possible `disposition` values:
+
+- `auto_allow` - action was `read_only` or `reversible_write`; executed without judge invocation.
+- `judged_allow` - `external_facing` action; judge said ALLOW; executed.
+- `judged_revise` - judge said REVISE; revision sent back to executor; executor produced a corrected proposal.
+- `judged_block` - judge said BLOCK; action did not execute; pipeline halted.
+- `judged_escalate` - judge said ESCALATE; pipeline paused for human input.
+- `human_confirmed` - judge said ALLOW on `high_risk`, OR judge said ESCALATE and human approved; action executed.
+- `human_blocked` - judge said ALLOW on `high_risk` but human refused, OR judge said ESCALATE and human refused; action did not execute; pipeline halted.
+
+When reading the log, focus on the `judged_*` and `human_*` entries first - those are the moments the judge or you actually exercised judgment. The `auto_allow` entries are the audit trail; you typically only read them when investigating a specific incident.
+
+### Reading judge-metrics.yaml
+
+Aggregate counts and the tuning signal:
+
+```yaml
+total_actions: 23
+by_class:
+  read_only: 12
+  reversible_write: 7
+  external_facing: 3
+  high_risk: 1
+by_disposition:
+  auto_allow: 19
+  judged_allow: 2
+  judged_revise: 1
+  judged_block: 0
+  judged_escalate: 1
+  human_confirmed: 1
+  human_blocked: 0
+escalation_rate: 0.087
+judge_invocations: 4
+revision_cycles: 1
+```
+
+`escalation_rate` is `(judged_escalate + human_blocked) / total_actions`. It's the operator's tuning signal:
+
+- **Too low (e.g., 0.00)** - the classification rules may be too permissive. The judge is allowing things you would have wanted to confirm. Tighten by moving borderline rules from `external_facing` to `high_risk`, or by adding project-specific rules under stricter classes.
+- **Too high (e.g., >0.20)** - every other action is paging you. This is the **cookie-banner effect** the judge layer exists to prevent: humans flooded with confirmation prompts learn to click APPROVE reflexively, defeating the gate. Loosen by moving over-strict rules to a less-strict class, or by adding more specific patterns that catch the truly dangerous cases without sweeping in routine ones.
+- **Healthy range (rough guide, project-dependent)** - `0.02 - 0.10`. Most actions auto-allowed; a few external/high-risk actions per run; one or two genuine human checks. Treat the rate as a moving average over many runs, not a single-run target.
+
+`revision_cycles` is the cumulative count of judge-REVISE -> executor-retry pairs across all actions. High revision_cycles with low judge_block suggests the executor is converging on correct actions after a couple of nudges - generally healthy. High revision_cycles **with** a final auto-escalate on the same action means the executor and judge disagree fundamentally on what the manifest authorizes - that's a manifest clarity bug, not an agent bug.
+
+### Adding project-specific rules
+
+Two common cases:
+
+**Your deploy command is high-risk.** If `make deploy-prod` (or whatever) is your push-to-production trigger, add it under `high_risk`:
+
+```yaml
+high_risk:
+  # ... existing entries ...
+  - pattern: '\bmake\s+deploy-prod\b'
+    tool: bash
+    note: "Production deploy. Externally visible; requires explicit manifest authorization."
+```
+
+**Your API has a specific destructive endpoint.** If `curl -X DELETE https://api.example.com/v1/customers` is something you never want auto-allowed, add a more specific rule **above** the generic `curl -X DELETE` entry under `external_facing`, OR promote it to `high_risk`:
+
+```yaml
+high_risk:
+  - pattern: 'curl.*example\.com/v1/customers'
+    tool: bash
+    note: "Customer-data DELETE. Irreversible and PII-touching."
+```
+
+Rules are first-match-wins within each class, and the four classes are evaluated in priority order (`high_risk` first). Putting the specific rule in a higher-priority class means it wins regardless of the generic rule's position.
+
+### When the judge ESCALATEs and you aren't sure
+
+The judge's `escalation_question` is designed to be answerable without reading other artifacts. If you find yourself unable to answer, the manifest is probably ambiguous - the right move is to halt, edit the manifest to remove the ambiguity, and re-run. The escalation question itself often tells you exactly which manifest field is unclear.
+
+Do NOT routinely click APPROVE on escalations you don't fully understand. That's the cookie-banner effect arriving in slow motion. If escalations are happening on the same kind of question repeatedly, that's a manifest-template improvement to make for your project.
+
+---
+
+## Single-AI hardening (v0.5)
+
+v0.5 adds three stages between `verify` and `manager` plus a strict manifest schema validator. The pipeline now looks like:
+
+```
+manifest -> research -> plan -> test-write -> execute -> policy -> verify ->
+drift-detect -> critique -> auto-promote -> manager
+```
+
+You don't opt into v0.5 - every new run on a project initialized with v0.5 plumbing gets the three stages automatically. The point of v0.5 is making the pipeline credible when one AI runs the whole thing.
+
+### What each new stage does
+
+**drift-detect.** A read-only role that compares the manifest's contract (`goal`, `expected_outputs`, `definition_of_done`, `non_goals`) against the assembled final state - durable docs included (`CHANGELOG.md`, `README.md`, `USER-MANUAL.md`, ADRs, any project HANDOFF). It catches the gap class neither the judge (per-action) nor the verifier (per-criterion) sees: documents that say one thing while code says another, version strings out of sync, status-word abuse, "Closed" without evidence. Emits a parseable count line:
+
+```
+**Drift: <total> total, <blocker> blocker**
+```
+
+**critique.** A hostile cold read of every artifact in a fresh context. The critic role contract forbids encouragement, severity softening, "no findings" without per-lens evidence, and trusting the verifier or executor at face value. Walks six lenses - engineering, UX, tests, docs, QA, scope - and emits a parseable count line:
+
+```
+**Findings: <total> total, <blocker> blocker, <critical> critical, <major> major, <minor> minor**
+```
+
+**auto-promote.** A pipeline (script) stage, not an agent. Runs `scripts/policy/auto_promote.py`, which reads the count lines from verifier/critic/drift/policy/judge artifacts and checks six conditions:
+
+1. Verifier-clean: zero `NOT MET` and zero `PARTIAL` criteria.
+2. Critic-clean: zero blocker findings and zero critical findings.
+3. Drift-clean: zero blocker drift items.
+4. Policy-passed: `POLICY: ALL CHECKS PASSED`.
+5. Judge-clean: zero `judged_block` and zero `human_blocked` (vacuous when judge layer is off).
+6. Tests-passed: a recognizable `N passed[, 0 failed]` in `implementation-report.md`.
+
+When all six pass, and when every directive-declared manager assertion also
+passes for directive-bound runs, the script writes `manager-decision.md` with
+`**Decision: PROMOTE**` and a citation block. The manager stage detects the
+preset and short-circuits the human gate - you only see the manager gate when
+something needs your attention. When any condition fails, including directive
+hash integrity or a directive manager assertion, the script writes
+`auto-promote-report.md` naming the failing conditions and the manager stage
+runs normally with the human gate active.
+
+### Pre-edit fact-forcing in executor
+
+Before the executor's first edit/write to any file in a run, it must produce a fact block (importers/callers, public API affected, data schema touched, manifest goal quoted verbatim) - either inline in `implementation-report.md` or in `.agent-runs/<run-id>/notes/pre-edit-<filename>.md`. The drift-detector and critic check for the block; a missing block on any touched file is a finding.
+
+This is the v0.5 substitute for "tell the agent to read carefully." Asking is useless; demanding a written artifact forces the investigation.
+
+### Pre-verify DoD readiness gate
+
+The executor must not hand off a partial implementation slice to full-rung
+policy/verify gates. Before execute can complete, `implementation-report.md`
+must include:
+
+```markdown
+**DoD readiness: READY**
+**DoD checklist: <T> total, <R> ready, <B> blocked, <D> deferred**
+```
+
+That checklist is built from `manifest.expected_outputs`,
+`manifest.definition_of_done`, project UX/docs/testing gates, and any prior
+manager/verifier/drift/critic blockers. `READY` is allowed only when every item
+is implemented with evidence or explicitly deferred with cited manifest or
+director-decision authorization. `scripts/policy/check_execute_readiness.py`
+and `run_all.py` block the run when the readiness block is missing, says
+`NOT_READY`, has blocked items, or contains unchecked readiness boxes.
+
+### Strict manifest schema validation
+
+`scripts/policy/check_manifest_schema.py` enforces:
+
+- `goal` >= 30 chars, no forbidden status words (`done`, `complete`, `ready`, `shippable`, `taggable`)
+- `definition_of_done` >= 80 chars, same word ban
+- `expected_outputs` non-empty
+- `non_goals` non-empty
+- `rollback_plan` non-empty
+- Broad `allowed_paths` (top-level directory like `src/`) requires non-empty `forbidden_paths`
+
+The check fires both at run-start (Phase A2 in `run-pipeline`) AND inside the policy stage (defense in depth). Fuzzy manifests fail at the gate before they cascade into downstream work.
+
+To validate before starting the run:
+
+```bash
+python scripts/policy/validate_manifest.py --run <run-id>
+```
+
+The command prints each violation plus the fix instruction. It does not start
+or resume the pipeline.
+
+### Workflow-cost directives
+
+The canonical workflow-cost contract lives in
+`.pipelines/templates/workflow-cost-directives.md`. `AGENTS.md`, the planner
+role, and the executor role reference that file instead of carrying separate
+copies. If you refresh an older project scaffold, copy this file and the
+current `check_actions_budget.py` into the project together.
+
+### Honest limit
+
+Single-model-family blind spots correlate. If both the executor and the critic share a wrong assumption that fits the manifest, both sign off and auto-promote fires green. Dual-AI (v0.3 `audit-init`) is the only structural defense against this. **Recommended mitigation:** periodic sample audit by a different model family on a weekly cadence. The v0.5 single-AI release does not replace v0.3; it provides single-AI projects a credible alternative when a second model family is not available.
+
+### When auto-promote refuses
+
+`auto-promote-report.md` names exactly which condition(s) failed. Typical fixes:
+
+- **Verifier-clean fails:** open `verifier-report.md`, address every NOT MET / PARTIAL criterion. Then re-run the verifier stage.
+- **Critic-clean fails:** open `critic-report.md`. Blocker or critical findings need to be addressed in code or in the manifest before the run promotes. Minor findings don't block.
+- **Drift-clean fails:** open `drift-report.md`. Blocker drift typically means a durable doc lies about the change - fix the doc.
+- **Policy fails:** open `policy-report.md`. If `check_execute_readiness` failed, continue executor implementation until the full manifest DoD is implemented/evidenced or explicitly deferred; do not send a backend-only slice to verifier.
+- **Tests-passed fails:** the implementation-report.md doesn't have a recognizable test-passing signal. Re-run tests, paste output, re-run executor stage with the fix.
+
+Re-running `run-pipeline <type> <run-id>` after fixing the underlying issue picks up at the failing stage thanks to the append-only `run.log`.
+
+---
+
+## Hooked pipeline autonomy (v0.7)
+
+v0.7 ships optional Codex lifecycle hooks. They are plugin-bundled hooks, so
+Codex only loads them when the local Codex config enables plugin hooks:
+
+```toml
+[features]
+plugin_hooks = true
+```
+
+After changing the config, restart Codex and review/trust the plugin hooks if
+Codex prompts you through `/hooks`. This is an opt-in runtime guardrail. It
+works in a normal signed-in local Codex session, including Max/Pro-style local
+use, and does not require a Codex access token. Codex access tokens are
+documented by OpenAI for ChatGPT Business and Enterprise workspaces; this plugin
+documents them only as optional CI plumbing for those workspace types.
+
+### What the hooks do
+
+- `SessionStart` adds active run context on startup/resume: run id, stage, next
+  action, directive-bound status, and judge status.
+- `UserPromptSubmit` warns when a prompt names stale standalone skills such as
+  `run-pipeline` instead of `agent-pipeline-codex:run-pipeline`, and blocks
+  explicit gate-bypass prompts during an active run.
+- `PreToolUse` warns on reviewable risk and denies clearly unsafe actions:
+  destructive commands, force pushes, publishing/deploy operations, credential
+  exposure, and active-run writes outside manifest `allowed_paths`.
+- `PermissionRequest` denies overbroad or unsafe approval requests. Normal
+  approvals are left to Codex's platform approval flow.
+- `PostToolUse` adds corrective context after failed commands, test failures,
+  or changes to manifest/scope/directive artifacts.
+- `Stop` reuses the final-response gate. If an active run is not at a valid
+  stop condition, Codex receives a continuation instruction instead of ending.
+
+The default behavior is warn/context mode. Hard blocking is reserved for
+concrete safety violations. The existing directive contract, judge layer,
+policy scripts, and human gates remain authoritative; hooks strengthen those
+protections but do not replace them.
+
+### Technical activation and data flow
+
+The plugin declares `hooks/hooks.json` in `.codex-plugin/plugin.json`. When
+Codex has `plugin_hooks = true` and the operator has trusted the hook bundle,
+Codex sends each lifecycle event as JSON on stdin to `hooks/hook_runner.py`.
+The runner uses `hooks/hook_utils.py` to read on-disk project/run artifacts and
+prints Codex hook JSON only when it has context, a denial, or a continuation
+instruction.
+
+```text
+Codex lifecycle event
+  -> hooks/hook_runner.py
+  -> hooks/hook_utils.py
+  -> .agent-runs/<run-id>/active-control-state.md + manifest/scope/directive artifacts
+  -> Codex hook response: additionalContext, deny, or continue
+```
+
+The hooks are plugin-layer runtime guardrails. They do not get copied into
+project `scripts/policy/` by `pipeline-init`, and they do not replace any
+project-scaffolded policy script.
+
+### Hook audit log
+
+When a hook can identify an active run, it appends a small JSONL receipt at:
+
+```text
+.agent-runs/<run-id>/hook-events.jsonl
+```
+
+This file is an audit trail, not a gate artifact. The pipeline still uses
+`run.log`, policy reports, verifier/critic/drift reports, and
+`manager-decision.md` as the authoritative promotion evidence.
+
+### Persistent run memory
+
+Trusted hooks also maintain a compact local memory folder for the active run:
+
+```text
+.agent-runs/<run-id>/memory/
+|-- events.jsonl
+|-- turns.jsonl
+|-- decisions.jsonl
+|-- open_loops.jsonl
+|-- memory_probe.log
+`-- handoff_current.md
+```
+
+The JSONL files are append-only memory receipts. `handoff_current.md` is a
+small generated summary of the current run state, recent hook memory, warnings,
+and open loops. On the next `SessionStart`, Codex receives that handoff as
+additional context together with the active run context.
+
+This memory layer is intentionally file-backed and local. It does not require
+localmem, Qdrant, SQLite, embeddings, or a background service. A later optional
+adapter can mirror the same receipts into a localmem MCP server for semantic
+search and longer retention, but the built-in handoff remains the fallback and
+source of truth for wake-up context.
+
+Memory is not approval. If a handoff says a warning, failure, or decision
+happened, re-run the matching policy or verification command before treating it
+as current authority.
+
+---
+
+## Troubleshooting
+
+### `manager-decision.md` says PROMOTE but CI fails
+
+This was a real failure mode in early projects. Cause: local executor's pytest run passed because of stale dependencies in the local venv (e.g., a leftover `psycopg2-binary` install that wasn't a project dep). CI's fresh dep install exposed the gap.
+
+**Fix:** the executor role file now requires verification against a fresh dep set (`pip install -e ".[dev]"` or your project's equivalent fresh-install command) before claiming COMPLETE. If the issue recurs, your project's careful-coding template should reinforce this.
+
+### Manifest amendment needed mid-run
+
+If the planner or test-writer needs a path that wasn't in `allowed_paths`, the policy stage will block. Two paths:
+
+1. **Genuine correction** (the manifest's path enumeration was incomplete, not the scope) - amend the manifest in place, document the amendment in `.agent-runs/<run-id>/director-decisions.md`, re-run from the failed stage.
+2. **Genuine scope expansion** - the manager should return REPLAN; you re-issue `new-run` with a corrected manifest.
+
+If you find yourself amending manifests frequently, consider using directory-level granularity for path lists (e.g., `tests/schedule/` instead of three individual test files) in your manifest template default.
+
+### Pipeline halts on a director-decisions question
+
+The researcher surfaces open questions in `research.md` Section 5. The orchestrator may pause for you to record decisions before the planner runs (depending on your pipeline YAML - the default `feature.yaml` does NOT have an explicit director-decisions stage; it's an implicit "planner reads research, you can intervene before approving the plan"). To make it explicit, you can add a stage like:
+
+```yaml
+  - name: director-decisions
+    role: human
+    artifact: director-decisions.md
+    gate: human_approval
+```
+
+The researcher will write recommendations; you write the binding decisions; the planner reads both.
+
+### Cleanroom CI catches "works on my machine"
+
+If your project has CI but no Docker cleanroom, the executor's local pytest can pass while CI fails. This was the failure mode that surfaced multiple bugs in CivicCast. Recommended addition to your project: a `ci-cleanroom-e2e.yml` workflow that runs the full test suite inside a Docker container with all dependencies fresh-installed.
+
+### `verify-release.sh` fails or hangs during local rehearsal
+
+Do the v0.9.1 baseline-isolation check before deep debugging. Record the
+failure signature, stash branch changes, check out the merge-base, and rerun
+the exact same command in the same environment. If baseline passes, debug your
+branch. If baseline fails the same way, document the baseline SHA and treat the
+failure as pre-existing instead of blocking your branch on unrelated host or
+main-branch state. The durable role contract lives in
+`local-rehearsal.md` Step 2.5, with a verifier cross-reference for divergent
+test failures.
+
+## Glossary
+
+- **Run** - one execution of a pipeline. Has a unique id (e.g., `2026-05-09-add-search-endpoint`). All artifacts live under `.agent-runs/<run-id>/`.
+- **Manifest** - the contract for a run. Lives at `.agent-runs/<run-id>/manifest.yaml`. Read by every stage.
+- **Role file** - markdown file describing what one type of agent does. Lives at `.pipelines/roles/<role>.md`. Used as the prompt header when the orchestrator spawns a subagent for that role.
+- **Stage** - one step in a pipeline. Each stage produces one named artifact and either advances or halts.
+- **Gate** - a stop point requiring human approval before the pipeline advances. Three by default: manifest, plan, manager.
+- **PROMOTE / BLOCK / REPLAN** - the three possible manager decisions. PROMOTE = ready for human merge approval. BLOCK = unfixable in current state, fix and re-run. REPLAN = manifest itself was wrong, redraft and start over.
+- **Run log** - append-only `run.log` in the run dir. Records each stage outcome with timestamp. Drives resume.
+- **Director-decisions file** - optional `.agent-runs/<run-id>/director-decisions.md` capturing human answers to questions the researcher surfaced. When present, binding for the planner.
+- **Judge** (v0.4) - a fresh-context subagent invoked by the orchestrator inside the executor stage to evaluate individual proposed tool calls against the manifest. Returns `allow`, `block`, `revise`, or `escalate`. Activated by the presence of `.pipelines/action-classification.yaml`.
+- **Action class** (v0.4) - the risk category for an executor tool call: `read_only`, `reversible_write`, `external_facing`, or `high_risk`. Determines routing (auto-execute, judge, or judge-plus-human-confirm).
+- **Escalation rate** (v0.4) - `(judged_escalate + human_blocked) / total_actions` in `judge-metrics.yaml`. Operator's tuning signal; high values indicate cookie-banner fatigue.
+
+---
+
+## Source of truth
+
+This manual is the user-facing reference. The architecture and design rationale live in `ARCHITECTURE.md`. Plugin metadata is in `.codex-plugin/plugin.json`. Bug reports and feature requests: GitHub Discussions on the plugin repo.

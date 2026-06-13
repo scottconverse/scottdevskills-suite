@@ -1,0 +1,42 @@
+{
+  "name": "scott-dev-skills",
+  "version": "0.1.0",
+  "description": "Codex-native development skills for audits, walkthroughs, pipelines, prompt quality, context discipline, and optional gate templates.",
+  "author": {
+    "name": "Scott Converse",
+    "email": "sconverse@gmail.com",
+    "url": "https://github.com/scottconverse"
+  },
+  "homepage": "https://github.com/scottconverse/scottdevskills-suite",
+  "repository": "https://github.com/scottconverse/scottdevskills-suite",
+  "license": "Apache-2.0",
+  "keywords": [
+    "codex",
+    "skills",
+    "audit",
+    "pipeline",
+    "development"
+  ],
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "ScottDevSkills",
+    "shortDescription": "A Codex development skill suite for evidence-first delivery.",
+    "longDescription": "ScottDevSkills consolidates Scott Converse's reusable Codex development workflows: scoped and full audits, Playwright walkthroughs, manifest-driven agent pipelines, prompt quality checks, context discipline, and optional gate templates.",
+    "developerName": "Scott Converse",
+    "category": "Productivity",
+    "capabilities": [
+      "Interactive",
+      "Write"
+    ],
+    "websiteURL": "https://github.com/scottconverse/scottdevskills-suite",
+    "privacyPolicyURL": "https://github.com/scottconverse/scottdevskills-suite",
+    "termsOfServiceURL": "https://github.com/scottconverse/scottdevskills-suite/blob/main/LICENSE",
+    "brandColor": "#1A3A8F",
+    "defaultPrompt": [
+      "Audit this recent fix with audit-lite.",
+      "Run a full release readiness audit.",
+      "Walk through this UI and check what is really wired.",
+      "Initialize or resume an agent pipeline run."
+    ]
+  }
+}

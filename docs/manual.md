@@ -1,258 +1,346 @@
-# ScottDevSkills Manual
+# ScottDevSkills User Manual
 
 Version: **v0.1b**
 
-ScottDevSkills is a Codex plugin made of focused skills. Each skill is an
-operating procedure: when it triggers, it tells Codex how to gather evidence,
-what to avoid, which references to load, and what kind of answer or artifact to
-produce.
+ScottDevSkills is a Codex plugin for evidence-first development work. It gives
+Codex a set of focused operating procedures for audits, UI walkthroughs,
+manifest-driven pipeline runs, prompt quality checks, context discipline, and
+optional gate design.
+
+The suite is built around one principle: confidence should come from evidence,
+not from polished narration. A ScottDevSkills workflow should leave behind a
+clear account of what was inspected, what was verified, what failed, what is
+still unknown, and what should happen next.
+
+## Architecture Overview
+
+ScottDevSkills is packaged as a Codex marketplace plugin. The plugin contains
+skill entrypoints, shared references, pipeline payloads, and lightweight
+validation metadata.
+
+```mermaid
+flowchart TD
+    U["User request in Codex"] --> R["Skill trigger metadata"]
+    R --> A["Audit skills"]
+    R --> W["Walkthrough"]
+    R --> P["Agent Pipeline"]
+    R --> Q["Prompt Quality"]
+    R --> C["Context Discipline"]
+    R --> G["Hardgate Templates"]
+
+    A --> AR["Audit rubrics and output contracts"]
+    W --> WR["Route, browser, and UI wiring references"]
+    P --> PR["Pipeline manifests, payloads, policy scripts"]
+    Q --> QR["Prompt lint and eval references"]
+    C --> CR["Handoff and careful-coding references"]
+    G --> GR["Inert gate templates and test plan"]
+
+    AR --> E["Evidence-backed output"]
+    WR --> E
+    PR --> E
+    QR --> E
+    CR --> E
+    GR --> E
+```
+
+The plugin uses progressive disclosure:
+
+- **Skill metadata** decides when a skill should load.
+- **SKILL.md** provides the active workflow.
+- **References** hold detailed rubrics, templates, and checklists.
+- **Pipeline payloads** provide reusable manifests, roles, and policy scripts.
+- **Regression cases** document expected trigger behavior.
+
+## How The Skills Work Together
+
+The skills are designed to cover different parts of a development lifecycle.
+
+```mermaid
+flowchart LR
+    I["Intake"] --> N["New Run"]
+    N --> V["Validate Manifest"]
+    V --> R["Run Pipeline"]
+    R --> S["Show Status"]
+
+    R --> AL["Audit Lite"]
+    R --> AF["Audit Full"]
+    R --> WT["Walkthrough"]
+
+    PQ["Prompt Quality"] --> AL
+    CD["Context Discipline"] --> I
+    CD --> R
+    HG["Hardgate Templates"] --> V
+    HG --> AF
+```
+
+Common combinations:
+
+- Use **Context Discipline** before broad implementation work to reduce
+  scope/context risk.
+- Use **Intake**, **New Run**, and **Validate Manifest** to convert intent into
+  a controlled pipeline run.
+- Use **Run Pipeline** for structured execution.
+- Use **Audit Lite** between small fixes.
+- Use **Walkthrough** when the product surface is a UI.
+- Use **Audit Full** before release or handoff.
+- Use **Prompt Quality** whenever prompt behavior is part of the product.
+- Use **Hardgate Templates** when a repeated failure should become a policy or
+  preflight check.
+
+## Technical Model
+
+ScottDevSkills is not a separate runtime. It does not add a background service.
+It changes how Codex approaches a task after a skill is triggered.
+
+### Package Structure
+
+- `.agents/plugins/marketplace.json` exposes the plugin to Codex as a
+  marketplace entry.
+- `plugins/scott-dev-skills/.codex-plugin/plugin.json` declares plugin metadata,
+  version, capabilities, and skill location.
+- `plugins/scott-dev-skills/skills/*/SKILL.md` contains the active skill
+  instructions.
+- `plugins/scott-dev-skills/skills/*/references` contains skill-specific
+  reference material.
+- `plugins/scott-dev-skills/references` contains shared evidence standards,
+  output contracts, migration notes, and trigger cases.
+- `plugins/scott-dev-skills/tests/skill-regression/cases.json` records expected
+  trigger behavior.
 
-## How To Think About The Suite
+### Execution Behavior
 
-Use ScottDevSkills when the work needs discipline more than speed theater. The
-suite is strongest when a task has real risk: a release decision, a UI that may
-only be cosmetic, a prompt that needs regression cases, a long-running session,
-or a project run that should leave a durable trail.
+Most skills are procedural. They tell Codex what to inspect, what evidence to
+collect, how to classify findings, and what output shape to produce.
 
-The skills are intentionally narrow. If a task is small, use the small skill.
-If the task is broad, use the broad skill. If a skill is in audit mode, it
-reports instead of fixing unless you explicitly switch to repair work.
+Pipeline skills can create or update project files when the user asks for
+pipeline setup, run scaffolding, or execution. Audit and walkthrough skills
+default to read-only review unless the user explicitly asks for repair work.
+Hardgate Templates are inert by default.
 
-## Audit Lite
+### Evidence Standards
 
-**Good for:** a quick review of one bug fix, a small diff, a few touched files,
-or a pre-merge sanity check.
+A finding should normally identify:
 
-Audit Lite reads the changed surface, follows nearby callers and tests, checks
-the likely blast radius, and reports findings first. It is designed to be
-short, skeptical, and useful between fixes.
+- Affected file, route, workflow, prompt, run artifact, or UI element.
+- Expected behavior.
+- Observed behavior or concrete risk.
+- Impact.
+- Likely cause when supportable.
+- Suggested fix or test.
 
-Use it when you want to know:
+If evidence is incomplete, the skill should call that out instead of upgrading
+an assumption into a defect.
 
-- Did this fix introduce a regression?
-- Are the tests meaningful for the changed behavior?
-- Is there a small missing edge case?
-- Is this ready for the next step?
+## Skill Reference
 
-Avoid it when the work touches a release boundary, multiple subsystems,
-security-sensitive behavior, migration logic, or a complete product workflow.
-Use Audit Full for that.
+### Audit Lite
 
-## Audit Full
+**Purpose:** fast review of a small change.
 
-**Good for:** release gates, whole-project readiness, customer handoff,
-leadership review, and adversarial second opinions.
+Use Audit Lite for a bug fix, scoped diff, a few touched files, or a pre-merge
+sanity check. It reads the changed surface, follows nearby callers and tests,
+checks likely blast radius, and reports findings first.
 
-Audit Full reviews the project through five lenses:
+Best for:
 
-- Principal engineering quality.
-- UI/UX quality.
-- Technical writing and documentation.
-- Test strategy.
-- QA and runtime behavior.
+- Small bug fixes.
+- Focused pull requests.
+- Quick readiness checks between iterations.
+- Verifying that a targeted fix did not create an obvious regression.
 
-It produces a readiness verdict, severity-ranked findings, role deep dives,
-blast-radius analysis, this-sprint actions, next-sprint watchlist, and a
-verification summary.
+Output should be brief: severity-ranked findings, file/line evidence where
+available, residual risks, and test gaps.
 
-Use it when you want to know:
+Use **Audit Full** instead when the change touches a release boundary,
+architecture, data migration, security-sensitive behavior, or multiple
+subsystems.
 
-- Is this ready to ship?
-- What would break for real users?
-- What are the highest-risk gaps?
-- Which issues belong this sprint?
-- Which issues can wait but should not disappear?
+### Audit Full
 
-Audit Full is intentionally heavier than a code review. It should gather
-evidence from source, tests, docs, runtime behavior, and project scripts where
-feasible.
+**Purpose:** broad release and readiness review.
 
-## Walkthrough
+Audit Full reviews a project through engineering, UI/UX, documentation, testing,
+and QA lenses. It is intended for release gates, handoffs, readiness reviews,
+and adversarial second opinions.
 
-**Good for:** finished or nearly finished frontend work where the question is
-whether the interface is actually wired.
+Best for:
 
-Walkthrough uses browser exploration and source inspection to compare what the
-UI promises against what the system does. It checks routes, buttons, forms,
-menus, modals, state changes, mobile/desktop layouts, console errors, failed
-network requests, persistence, auth assumptions, and test coverage.
+- Release readiness.
+- Customer or leadership handoff.
+- Whole-repo quality review.
+- Finding risks across code, docs, tests, and runtime behavior.
 
-Use it when you want to know:
+Output should include an executive verdict, severity-ranked findings, role
+deep dives, blast-radius analysis, this-sprint punch list, next-sprint
+watchlist, and verification summary.
 
-- Which buttons do nothing?
-- Which screens are cosmetic?
-- Which documented flows are missing?
-- Which backend capabilities are not surfaced?
-- Which UI features are unsupported by real data?
-- Which tests would catch the gaps?
+### Walkthrough
 
-Walkthrough is not a repair skill by default. It reports the wiring map and the
-defects. Repair can happen afterward as a separate implementation task.
+**Purpose:** determine whether a UI is actually wired.
 
-## Agent Pipeline
+Walkthrough combines browser exploration with source inspection. It checks
+routes, visible controls, forms, modals, state changes, desktop/mobile layouts,
+console errors, network failures, persistence, auth assumptions, and test
+coverage.
 
-**Good for:** structured, manifest-driven project work that should not depend
-on memory or vibes.
+Best for:
 
-The Agent Pipeline skill is the router. It points Codex to the right stage:
+- Frontend readiness checks.
+- Product walkthroughs.
+- Finding cosmetic UI that is not backed by real behavior.
+- Verifying forms, buttons, menus, and navigation.
 
-- **pipeline-init** prepares a repo with pipeline templates and policy scripts.
-- **intake** captures a task without starting execution.
-- **new-run** creates a run skeleton.
-- **validate-manifest** checks run shape before execution.
-- **run-pipeline** executes or resumes a run.
-- **show-run-status** inspects a run without mutating it.
-- **audit-init** scaffolds audit-handoff infrastructure.
+Output should include route/workflow coverage, runtime evidence, UI wiring
+verdict, console/network issues, persistence/auth notes, and suggested tests.
 
-Use it when you want durable project execution with scope locks, stage
-artifacts, verification, and clear stop conditions.
+### Agent Pipeline
 
-Avoid it for tiny one-off edits. The pipeline pays for itself when the work is
-large enough that losing the thread would be expensive.
+**Purpose:** route structured pipeline work to the correct stage skill.
 
-## Pipeline Init
+Agent Pipeline is the suite's router for manifest-driven work. It selects the
+right pipeline stage rather than doing everything itself.
 
-**Good for:** preparing a repository for repeatable pipeline runs.
+Use it when the user asks to initialize, create, validate, run, resume, inspect,
+or scaffold pipeline work.
 
-Pipeline Init adds the project-side materials needed by the pipeline: template
-pipelines, policy scripts, run directory conventions, and starter guidance. It
-does setup only. It should not start a run unless the user explicitly requests
-that next step.
+### Pipeline Init
 
-Use it when a repo needs to become pipeline-ready.
+**Purpose:** prepare a repository for repeatable pipeline runs.
 
-## Intake
+Pipeline Init adds project-side materials such as templates, policy scripts,
+run directory conventions, and starter guidance. It is setup work. It should
+not execute a run unless the user explicitly asks for execution afterward.
 
-**Good for:** preserving a loose idea as a structured task.
+### Intake
 
-Intake turns plain-English intent into durable pipeline material: goal,
-constraints, likely run type, success criteria, risks, and missing decisions.
-It is useful when the project idea is real but not ready to execute yet.
+**Purpose:** turn loose intent into durable pipeline input.
 
-Use it when you want to capture the work without starting the work.
+Intake captures a task without starting execution. It is useful when an idea is
+real but not yet ready to run. A good intake records goal, constraints, success
+criteria, likely run type, risks, and open decisions.
 
-## New Run
+### New Run
 
-**Good for:** creating a fresh run skeleton.
+**Purpose:** create a fresh pipeline run skeleton.
 
-New Run selects a pipeline template, creates the run structure, and prepares the
-manifest and scope lock. It stops before execution.
+New Run chooses the appropriate template, creates the run structure, and
+prepares manifest/scope-lock materials. It stops before execution.
 
-Use it when the work is defined enough to become a pipeline run.
+### Validate Manifest
 
-## Validate Manifest
+**Purpose:** check a pipeline run before it moves.
 
-**Good for:** checking a pipeline run before it starts.
+Validate Manifest catches schema errors, missing fields, path issues, scope
+lock mismatches, and policy-shape problems. It reports pass/fail, blockers,
+warnings, affected fields, and minimum repair steps.
 
-Validate Manifest catches schema problems, missing fields, path issues, scope
-lock mismatches, and policy-shape errors before execution. It reports pass/fail,
-blockers, warnings, affected fields, and the smallest change needed to make the
-run executable.
+### Run Pipeline
 
-Use it when the run exists but you do not trust it yet.
+**Purpose:** execute or resume a manifest-driven run.
 
-## Run Pipeline
+Run Pipeline follows the manifest, respects scope locks and human gates, runs
+policy and verification stages, records evidence, and stops at gates, failures,
+or unclear scope.
 
-**Good for:** executing or resuming a pipeline run.
+### Show Run Status
 
-Run Pipeline follows the manifest, respects human gates, runs policy and
-verification stages, records evidence, and stops when the run hits a gate,
-failure, or unclear scope.
+**Purpose:** inspect a pipeline run without changing it.
 
-Use it when the run is ready to move.
+Show Run Status summarizes run id, current stage, last completed stage,
+blockers, required decisions, and next valid action. It is intentionally
+read-only.
 
-## Show Run Status
+### Audit Init
 
-**Good for:** read-only pipeline inspection.
+**Purpose:** create audit-handoff infrastructure.
 
-Show Run Status summarizes run id, pipeline type, current stage, last completed
-stage, blockers, required human decisions, and next valid action. It does not
-resume or mutate the run.
+Audit Init scaffolds audit protocols, audit gates, and five-lens self-audit
+materials. It prepares the project for future review discipline; it does not
+perform the audit itself.
 
-Use it when you want situational awareness without changing anything.
+### Prompt Quality
 
-## Audit Init
+**Purpose:** make prompt behavior testable.
 
-**Good for:** creating audit-handoff infrastructure.
+Prompt Quality reviews prompts and prompt-driven workflows for ambiguity,
+conflicting instructions, missing output contracts, hidden context assumptions,
+injection exposure, tool-use hazards, and untestable claims.
 
-Audit Init scaffolds audit gates, audit protocols, and five-lens self-audit
-materials. It is setup for future audits, not the audit itself.
+Best for:
 
-Use it when a project needs an audit discipline before implementation or
-release work proceeds.
+- Prompt linting.
+- Eval case design.
+- Regression tests for known failures.
+- Prompt release review.
+- Checking downstream schema/parser compatibility.
 
-## Prompt Quality
+Output should include prompt risks, suggested edits when useful, test/eval
+cases, and remaining uncertainty.
 
-**Good for:** prompt linting, prompt regression tests, eval design, and release
-checks for prompt changes.
+### Context Discipline
 
-Prompt Quality reviews prompts for ambiguity, conflicting instructions, missing
-output contracts, hidden context assumptions, injection exposure, tool-use
-hazards, and untestable claims. It can also design a small evaluation set for
-happy path, boundary path, malformed input, adversarial input, and known
-failure reproduction.
+**Purpose:** keep long or complex sessions coherent.
 
-Use it when you want to know:
+Context Discipline manages context pressure, large output, handoffs, and
+careful pre-edit analysis. It favors targeted reads, durable artifacts,
+summaries, search-first exploration, and explicit handoff state.
 
-- Is this prompt specific enough to test?
-- What failure modes should be in the eval set?
-- Does the output contract match downstream code?
-- What changed in risk when the prompt changed?
+It also contains the careful-coding behavior: trace callers, runtime paths,
+data contracts, render paths, persistence paths, tests, and blast radius before
+non-trivial edits.
 
-Prompt Quality is most useful when prompts are treated like production logic.
+Best for:
 
-## Context Discipline
+- Long sessions.
+- Large logs or command output.
+- Broad implementation work.
+- Handoffs.
+- High-risk edits.
 
-**Good for:** long sessions, large output, handoffs, context pressure, and
-careful pre-edit analysis.
+### Hardgate Templates
 
-Context Discipline helps Codex avoid drowning in its own working set. It favors
-targeted reads, saved artifacts, summaries, search-first exploration, and
-durable handoffs. For non-trivial code work, it pushes Codex to trace callers,
-runtime paths, data contracts, render paths, persistence paths, and tests
-before editing.
-
-Use it when:
-
-- The session is getting long.
-- Tool output is too large.
-- You need a handoff.
-- The task spans many files.
-- A careless edit would be expensive.
-
-## Hardgate Templates
-
-**Good for:** designing enforcement gates without installing active enforcement
-by surprise.
+**Purpose:** design enforcement without surprise enforcement.
 
 Hardgate Templates helps design policy checks, final-response checks, preflight
-scripts, hook templates, or release gates. In v0.1b, these are inert templates.
-They describe what a gate should enforce, how it should pass, how it should
-fail, how to test it, and how to avoid overfiring.
+scripts, hook templates, or release gates. In v0.1b, these templates are inert
+unless a later implementation task installs active enforcement.
 
-Use it when you want a gate design before deciding whether to install active
-enforcement.
+Best for:
+
+- Repeated failure patterns.
+- Release gates.
+- Policy check design.
+- Behavioral tests for compliance.
 
 ## Choosing The Right Skill
 
-Use **Audit Lite** for one fix.
+| Situation | Use |
+| --- | --- |
+| One small fix needs review | Audit Lite |
+| Whole project needs readiness review | Audit Full |
+| UI may be cosmetic or partially wired | Walkthrough |
+| Project work needs scope locks and stages | Agent Pipeline |
+| A task idea needs capture before execution | Intake |
+| A run exists but needs preflight | Validate Manifest |
+| A run should move forward | Run Pipeline |
+| A run needs read-only status | Show Run Status |
+| Prompt behavior changed | Prompt Quality |
+| Session context is becoming a risk | Context Discipline |
+| A recurring failure needs a gate design | Hardgate Templates |
 
-Use **Audit Full** for release readiness.
+## Operating Guidance
 
-Use **Walkthrough** for UI wiring.
-
-Use **Agent Pipeline** for structured multi-stage work.
-
-Use **Prompt Quality** for prompt and eval work.
-
-Use **Context Discipline** when the session itself is becoming a risk.
-
-Use **Hardgate Templates** when you need enforcement design, not enforcement
-surprises.
+- Start with the narrowest skill that matches the task.
+- Do not use audit skills as repair skills unless repair is explicitly
+  requested.
+- Prefer runtime evidence when reviewing UI behavior.
+- Prefer regression cases when reviewing prompts.
+- Prefer manifests and scope locks for work that spans multiple stages.
+- Preserve uncertainty instead of overstating findings.
 
 ## Beta Notes
 
-v0.1b is intentionally honest: the plugin is installable and validated, but the
-suite should improve through real project use. The best future improvements are
-more trigger regression cases, tighter output contracts, and examples from
-successful audits and walkthroughs.
+ScottDevSkills v0.1b is an early beta. The plugin is installable and validated,
+and its workflows are intentionally conservative. The next improvements should
+come from real use: better trigger regression cases, sharper output contracts,
+and examples from successful audits, walkthroughs, and pipeline runs.

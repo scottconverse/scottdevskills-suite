@@ -21,6 +21,7 @@ def main() -> int:
     validate_skills(root, errors)
     validate_cases(root, errors)
     validate_manifest(root, errors)
+    validate_resource_contracts(root, errors)
     if errors:
         print("Suite validation failed:")
         for error in errors:
@@ -94,6 +95,33 @@ def validate_cases(root: Path, errors: list[str]) -> None:
             errors.append(f"case {case.get('id')} expects unknown skill {expected}")
         if not case.get("prompt"):
             errors.append(f"case {case.get('id')} has empty prompt")
+
+
+def validate_resource_contracts(root: Path, errors: list[str]) -> None:
+    path = root / "tests" / "skill-regression" / "resource-contracts.json"
+    try:
+        contracts = json.loads(path.read_text(encoding="utf-8"))
+    except Exception as exc:  # pragma: no cover - diagnostic path
+        errors.append(f"cannot read resource contracts: {exc}")
+        return
+    skills = {p.name for p in (root / "skills").iterdir() if p.is_dir()}
+    for contract in contracts:
+        skill = contract.get("skill")
+        if skill not in skills:
+            errors.append(f"resource contract expects unknown skill {skill}")
+        files = contract.get("required_files")
+        if not isinstance(files, list) or not files:
+            errors.append(f"resource contract for {skill} has no required_files")
+            continue
+        for rel_path in files:
+            if not isinstance(rel_path, str):
+                errors.append(f"resource contract for {skill} has non-string path")
+                continue
+            if Path(rel_path).is_absolute() or ".." in Path(rel_path).parts:
+                errors.append(f"resource contract for {skill} has unsafe path: {rel_path}")
+                continue
+            if not (root / rel_path).is_file():
+                errors.append(f"resource contract missing file for {skill}: {rel_path}")
 
 
 if __name__ == "__main__":

@@ -29,6 +29,8 @@ to repair mode.
 4. Rank findings by severity and blast radius.
 5. Produce an executive verdict, role deep dives, sprint punch list, next-sprint
    watchlist, and verification summary.
+6. Use the shipped templates for the report files. Do not invent a new report
+   structure unless the user explicitly asks for a different format.
 
 ## References
 
@@ -40,6 +42,23 @@ to repair mode.
   `references/qa-engineer.md` for role-specific checks.
 - `../../references/quality-gates.md` and
   `../../references/output-contracts.md` for suite-wide standards.
+
+## Templates
+
+Use `templates/00-executive-audit.md` as the front door report. Use the role
+deep-dive templates for lens reports:
+
+- `templates/01-engineering-deepdive.md`
+- `templates/02-uiux-deepdive.md`
+- `templates/03-documentation-deepdive.md`
+- `templates/04-test-deepdive.md`
+- `templates/05-qa-deepdive.md`
+
+Use `templates/sprint-punchlist.md` and
+`templates/next-sprint-watchlist.md` for delivery planning. Use the optional
+documentation templates only when the audit produces replacement docs:
+`templates/readme-replacement.md`, `templates/user-manual.md`,
+`templates/architecture-doc.md`, and `templates/faq.md`.
 
 ## Failure Modes
 

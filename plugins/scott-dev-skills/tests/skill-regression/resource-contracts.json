@@ -1,0 +1,60 @@
+[
+  {
+    "skill": "audit-full",
+    "required_files": [
+      "skills/audit-full/templates/00-executive-audit.md",
+      "skills/audit-full/templates/01-engineering-deepdive.md",
+      "skills/audit-full/templates/02-uiux-deepdive.md",
+      "skills/audit-full/templates/03-documentation-deepdive.md",
+      "skills/audit-full/templates/04-test-deepdive.md",
+      "skills/audit-full/templates/05-qa-deepdive.md",
+      "skills/audit-full/templates/_deepdive-shared.md",
+      "skills/audit-full/templates/sprint-punchlist.md",
+      "skills/audit-full/templates/next-sprint-watchlist.md",
+      "skills/audit-full/templates/readme-replacement.md",
+      "skills/audit-full/templates/user-manual.md",
+      "skills/audit-full/templates/architecture-doc.md",
+      "skills/audit-full/templates/faq.md"
+    ]
+  },
+  {
+    "skill": "walkthrough",
+    "required_files": [
+      "skills/walkthrough/references/report-template.md",
+      "skills/walkthrough/references/route-inventory.md",
+      "skills/walkthrough/references/playwright-evidence.md",
+      "skills/walkthrough/references/ui-wiring-checklist.md",
+      "skills/walkthrough/references/failure-modes.md"
+    ]
+  },
+  {
+    "skill": "pipeline-init",
+    "required_files": [
+      "skills/pipeline-init/references/pipeline-payload/pipelines/templates/audit-gate-template.md",
+      "skills/pipeline-init/references/pipeline-payload/pipelines/templates/audit-protocol-template.md",
+      "skills/pipeline-init/references/pipeline-payload/pipelines/templates/5-lens-self-audit-template.md"
+    ]
+  },
+  {
+    "skill": "hardgate-templates",
+    "required_files": [
+      "skills/hardgate-templates/references/gate-template.md"
+    ]
+  },
+  {
+    "skill": "prompt-quality",
+    "required_files": [
+      "skills/prompt-quality/references/eval-design.md",
+      "skills/prompt-quality/references/prompt-lint-rules.md",
+      "skills/prompt-quality/references/prompt-release-checklist.md"
+    ]
+  },
+  {
+    "skill": "context-discipline",
+    "required_files": [
+      "skills/context-discipline/references/careful-coding.md",
+      "skills/context-discipline/references/handoff.md",
+      "skills/context-discipline/references/large-output.md"
+    ]
+  }
+]

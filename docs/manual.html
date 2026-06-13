@@ -428,11 +428,15 @@
               <p>
                 First-time CLI setup uses two steps. Once the marketplace is
                 configured, refresh it before plugin install so Codex uses the
-                current snapshot.
+                current snapshot. If the plugin is already installed, remove it
+                before refreshing and reinstalling.
               </p>
               <pre><code>codex plugin marketplace add scottconverse/scottdevskills-suite --ref main --sparse .agents/plugins/marketplace.json --sparse plugins/scott-dev-skills
 codex plugin add scott-dev-skills@scottdevskills</code></pre>
               <pre><code>codex plugin marketplace upgrade scottdevskills
+codex plugin add scott-dev-skills@scottdevskills</code></pre>
+              <pre><code>codex plugin remove scott-dev-skills@scottdevskills
+codex plugin marketplace upgrade scottdevskills
 codex plugin add scott-dev-skills@scottdevskills</code></pre>
             </div>
           </div>
@@ -440,7 +444,8 @@ codex plugin add scott-dev-skills@scottdevskills</code></pre>
           <ul>
             <li>Start a fresh Codex thread if newly installed skills do not appear.</li>
             <li>Use the plugin id <code>scott-dev-skills@scottdevskills</code> when reinstalling or removing it.</li>
-            <li>If the marketplace is already configured, refresh <code>scottdevskills</code> before installing from it.</li>
+            <li>If the marketplace is already configured and the plugin is not installed, refresh <code>scottdevskills</code> before installing from it.</li>
+            <li>If the plugin is already installed, remove it before refreshing and reinstalling to avoid stale cache and cache-backup permission failures.</li>
           </ul>
         </section>
 

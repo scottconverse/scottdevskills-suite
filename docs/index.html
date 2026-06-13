@@ -533,11 +533,15 @@ Plugin: scott-dev-skills</code></pre>
             <p>
               A first-time CLI install is two short steps. If the marketplace is
               already configured, refresh it before installing so Codex uses the
-              current snapshot.
+              current snapshot. If the plugin is already installed, remove it
+              before refreshing and reinstalling.
             </p>
             <pre><code>codex plugin marketplace add scottconverse/scottdevskills-suite --ref main --sparse .agents/plugins/marketplace.json --sparse plugins/scott-dev-skills
 codex plugin add scott-dev-skills@scottdevskills</code></pre>
             <pre><code>codex plugin marketplace upgrade scottdevskills
+codex plugin add scott-dev-skills@scottdevskills</code></pre>
+            <pre><code>codex plugin remove scott-dev-skills@scottdevskills
+codex plugin marketplace upgrade scottdevskills
 codex plugin add scott-dev-skills@scottdevskills</code></pre>
             <div class="fine-print">
               Plugin id: <code>scott-dev-skills@scottdevskills</code>

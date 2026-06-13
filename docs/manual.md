@@ -34,10 +34,20 @@ codex plugin add scott-dev-skills@scottdevskills
 ```
 
 If the `scottdevskills` marketplace is already configured, refresh it before
-installing. Codex installs from its local marketplace snapshot, not directly
-from GitHub on every install:
+installing. Use this path when the plugin is not currently installed. Codex
+installs from its local marketplace snapshot, not directly from GitHub on every
+install:
 
 ```powershell
+codex plugin marketplace upgrade scottdevskills
+codex plugin add scott-dev-skills@scottdevskills
+```
+
+If the plugin is already installed and you want to update or reinstall it,
+remove the installed copy before refreshing the marketplace:
+
+```powershell
+codex plugin remove scott-dev-skills@scottdevskills
 codex plugin marketplace upgrade scottdevskills
 codex plugin add scott-dev-skills@scottdevskills
 ```
@@ -48,10 +58,11 @@ list they loaded when the thread started.
 ### Install Troubleshooting
 
 - If Codex does not show the skills immediately, start a fresh thread.
-- If the marketplace is already configured, refresh `scottdevskills` before
-  installing from it.
-- If a stale beta remains installed, uninstall `scott-dev-skills@scottdevskills`,
-  refresh `scottdevskills`, and install it again from the same marketplace.
+- If the marketplace is already configured and the plugin is not installed,
+  refresh `scottdevskills` before installing from it.
+- If the plugin is already installed, uninstall `scott-dev-skills@scottdevskills`
+  before refreshing and reinstalling. This avoids stale cache and cache-backup
+  permission failures.
 - The plugin id is `scott-dev-skills@scottdevskills`.
 
 ## Architecture Overview

@@ -1,24 +1,66 @@
-# ScottDevSkills Suite
+# ScottDevSkills
 
-Codex-native development skills for evidence-first software work.
+ScottDevSkills is a Codex plugin for serious development work: audits,
+interface walkthroughs, pipeline runs, prompt quality checks, context control,
+and optional gate templates.
 
-The installable plugin lives at `plugins/scott-dev-skills`. It contains lean
-skill entrypoints plus on-demand references for audits, UI walkthroughs,
-manifest-driven pipeline runs, prompt quality checks, context discipline, and
-optional gate templates.
+Version: **v0.1b**
 
-V1 intentionally does not ship old duplicate names such as `audit-team`, and it
-does not include domain packs for civic, patent, Amazon, or product-specific
-workflows.
+The plugin is built for developers who want fewer vague reviews and more
+evidence: findings tied to files, runtime behavior, tests, screenshots, logs,
+manifests, and concrete next actions.
+
+## What It Includes
+
+- **Audit Lite**: fast review of a small fix or scoped diff.
+- **Audit Full**: deep release/readiness audit across code, UX, docs, tests,
+  and QA behavior.
+- **Walkthrough**: browser-driven UI wiring review for finished or nearly
+  finished frontends.
+- **Agent Pipeline**: manifest-driven project execution with initialization,
+  intake, new-run setup, validation, execution, and status inspection.
+- **Prompt Quality**: prompt linting, regression case design, eval planning,
+  and release checks for prompt changes.
+- **Context Discipline**: long-session hygiene, large-output control,
+  handoffs, and careful pre-edit analysis.
+- **Hardgate Templates**: inert templates for enforcement gates and policy
+  checks.
 
 ## Installation
 
-ScottDevSkills is distributed as a Codex marketplace repo. Add the
-`scottconverse/scottdevskills-suite` marketplace in Codex, then install the
-`scott-dev-skills` plugin from the `scottdevskills` marketplace.
+ScottDevSkills is distributed as a Codex marketplace repository.
 
-The marketplace file lives at `.agents/plugins/marketplace.json`, and the
-plugin package lives at `plugins/scott-dev-skills`.
+In Codex, add the marketplace from this repository:
 
-After installation, start a fresh Codex thread so the newly installed skills are
-loaded into the session.
+```text
+scottconverse/scottdevskills-suite
+```
+
+Then install the plugin named:
+
+```text
+scott-dev-skills
+```
+
+After installation, start a fresh Codex thread so the newly installed skills
+are loaded into the session.
+
+## Documentation
+
+- [Manual](docs/manual.md)
+- [Landing Page](https://scottconverse.github.io/scottdevskills-suite/)
+
+## Repository Layout
+
+- `.agents/plugins/marketplace.json`: Codex marketplace metadata.
+- `plugins/scott-dev-skills`: installable plugin package.
+- `plugins/scott-dev-skills/skills`: skill entrypoints.
+- `plugins/scott-dev-skills/references`: shared quality gates and contracts.
+- `plugins/scott-dev-skills/tests/skill-regression`: trigger regression cases.
+- `docs`: public documentation and landing page.
+
+## Status
+
+ScottDevSkills v0.1b is an early beta. The plugin is installable and validated,
+but the skill suite is expected to evolve as real projects expose sharper
+workflow boundaries and better regression cases.

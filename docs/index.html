@@ -1,0 +1,296 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1">
+    <title>ScottDevSkills</title>
+    <meta
+      name="description"
+      content="A Codex plugin for evidence-first audits, walkthroughs, pipelines, prompt quality, context discipline, and gate templates."
+    >
+    <style>
+      :root {
+        color-scheme: light;
+        --ink: #172033;
+        --muted: #5d667a;
+        --line: #d8dde8;
+        --panel: #ffffff;
+        --wash: #f5f7fb;
+        --blue: #1959b8;
+        --green: #147a63;
+        --gold: #a26413;
+        --red: #ad3040;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      body {
+        margin: 0;
+        font-family:
+          Inter, ui-sans-serif, system-ui, -apple-system, BlinkMacSystemFont,
+          "Segoe UI", sans-serif;
+        color: var(--ink);
+        background: var(--wash);
+        line-height: 1.55;
+      }
+
+      a {
+        color: var(--blue);
+      }
+
+      .hero {
+        min-height: 78vh;
+        display: grid;
+        align-items: end;
+        padding: 56px 24px 72px;
+        background:
+          linear-gradient(rgba(18, 28, 47, 0.68), rgba(18, 28, 47, 0.48)),
+          url("https://images.unsplash.com/photo-1451187580459-43490279c0fa?auto=format&fit=crop&w=2200&q=80");
+        background-size: cover;
+        background-position: center;
+        color: #ffffff;
+      }
+
+      .hero-inner,
+      main {
+        width: min(1120px, 100%);
+        margin: 0 auto;
+      }
+
+      .eyebrow {
+        margin: 0 0 14px;
+        font-size: 14px;
+        font-weight: 700;
+        text-transform: uppercase;
+        letter-spacing: 0.08em;
+      }
+
+      h1 {
+        margin: 0;
+        max-width: 850px;
+        font-size: clamp(44px, 8vw, 92px);
+        line-height: 0.96;
+        letter-spacing: 0;
+      }
+
+      .lead {
+        max-width: 720px;
+        margin: 24px 0 34px;
+        font-size: clamp(19px, 2.4vw, 26px);
+      }
+
+      .actions {
+        display: flex;
+        flex-wrap: wrap;
+        gap: 12px;
+      }
+
+      .button {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 44px;
+        padding: 11px 16px;
+        border: 1px solid rgba(255, 255, 255, 0.55);
+        color: #fff;
+        text-decoration: none;
+        font-weight: 700;
+        background: rgba(255, 255, 255, 0.14);
+      }
+
+      .button.primary {
+        color: #11203a;
+        background: #fff;
+      }
+
+      main {
+        padding: 54px 24px 72px;
+      }
+
+      section {
+        margin: 0 0 54px;
+      }
+
+      h2 {
+        margin: 0 0 18px;
+        font-size: clamp(28px, 4vw, 46px);
+        line-height: 1.06;
+      }
+
+      .plain {
+        max-width: 820px;
+        color: var(--muted);
+        font-size: 18px;
+      }
+
+      .grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(245px, 1fr));
+        gap: 14px;
+      }
+
+      .card {
+        min-height: 188px;
+        padding: 20px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--panel);
+      }
+
+      .card h3 {
+        margin: 0 0 10px;
+        font-size: 20px;
+      }
+
+      .card p {
+        margin: 0;
+        color: var(--muted);
+      }
+
+      .stripe {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 24px;
+        padding: 28px;
+        border-top: 3px solid var(--green);
+        background: #fff;
+      }
+
+      .stripe strong {
+        display: block;
+        margin-bottom: 6px;
+      }
+
+      .quote {
+        padding: 30px;
+        border-left: 4px solid var(--gold);
+        background: #fff;
+        font-size: 22px;
+      }
+
+      footer {
+        border-top: 1px solid var(--line);
+        padding: 28px 24px;
+        color: var(--muted);
+        background: #fff;
+      }
+
+      footer div {
+        width: min(1120px, 100%);
+        margin: 0 auto;
+      }
+
+      @media (max-width: 720px) {
+        .hero {
+          min-height: 74vh;
+          padding-top: 40px;
+        }
+
+        .stripe {
+          grid-template-columns: 1fr;
+          padding: 22px;
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <header class="hero">
+      <div class="hero-inner">
+        <p class="eyebrow">ScottDevSkills v0.1b</p>
+        <h1>Evidence-first development skills for Codex.</h1>
+        <p class="lead">
+          A practical plugin for audits, UI walkthroughs, structured pipeline
+          runs, prompt quality checks, context discipline, and gate templates.
+        </p>
+        <div class="actions">
+          <a class="button primary" href="manual.html">Read the manual</a>
+          <a class="button" href="https://github.com/scottconverse/scottdevskills-suite">View on GitHub</a>
+        </div>
+      </div>
+    </header>
+
+    <main>
+      <section>
+        <h2>Built for the work between idea and ship.</h2>
+        <p class="plain">
+          ScottDevSkills is not magic and it does not pretend to replace
+          judgment. It gives Codex sharper operating procedures for the moments
+          where vague help is not enough: reviewing a risky fix, proving a UI is
+          wired, keeping a long run on track, or making prompts testable.
+        </p>
+      </section>
+
+      <section class="grid" aria-label="Skill summaries">
+        <article class="card">
+          <h3>Audit Lite</h3>
+          <p>Fast, scoped review for one fix or a small diff. Findings first,
+          tied to evidence.</p>
+        </article>
+        <article class="card">
+          <h3>Audit Full</h3>
+          <p>Deep release/readiness audit across code, UX, docs, tests, and QA
+          behavior.</p>
+        </article>
+        <article class="card">
+          <h3>Walkthrough</h3>
+          <p>Browser-driven UI wiring review for routes, buttons, forms,
+          console errors, and real behavior.</p>
+        </article>
+        <article class="card">
+          <h3>Agent Pipeline</h3>
+          <p>Manifest-driven project execution with intake, validation, run
+          status, and stop conditions.</p>
+        </article>
+        <article class="card">
+          <h3>Prompt Quality</h3>
+          <p>Prompt linting, regression case design, eval planning, and release
+          checks for prompt changes.</p>
+        </article>
+        <article class="card">
+          <h3>Context Discipline</h3>
+          <p>Long-session hygiene, large-output control, handoffs, and careful
+          pre-edit analysis.</p>
+        </article>
+      </section>
+
+      <section class="stripe">
+        <div>
+          <strong>What it is good at</strong>
+          Turning Codex into a more disciplined development partner when there
+          is enough risk to justify process: audits, release checks, UI truth,
+          structured runs, prompt regressions, and handoffs.
+        </div>
+        <div>
+          <strong>What it is not</strong>
+          It is not a guarantee that every bug will be found. It is not a
+          replacement for tests, production monitoring, or human ownership. It
+          is a better operating loop for getting evidence before confidence.
+        </div>
+      </section>
+
+      <section>
+        <div class="quote">
+          The pitch is simple: less "looks fine," more "here is what I checked,
+          here is what failed, and here is the next concrete move."
+        </div>
+      </section>
+
+      <section>
+        <h2>Installable as a Codex marketplace plugin.</h2>
+        <p class="plain">
+          The repository includes marketplace metadata, the plugin package,
+          lean skill entrypoints, on-demand references, pipeline payloads, and a
+          validation script for the suite structure.
+        </p>
+      </section>
+    </main>
+
+    <footer>
+      <div>
+        ScottDevSkills v0.1b. Apache-2.0. Built by Scott Converse.
+      </div>
+    </footer>
+  </body>
+</html>

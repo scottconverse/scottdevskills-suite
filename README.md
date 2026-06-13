@@ -33,7 +33,7 @@ ScottDevSkills is distributed as a Codex marketplace repository.
 ### Install From Codex
 
 1. Open the Codex plugin marketplace flow.
-2. Add the marketplace repository `scottconverse/scottdevskills-suite`.
+2. Add or refresh the marketplace repository `scottconverse/scottdevskills-suite`.
 3. Install the plugin named `scott-dev-skills`.
 4. Start a fresh Codex thread so the newly installed skills are loaded into the
    session.
@@ -47,10 +47,12 @@ codex plugin marketplace add scottconverse/scottdevskills-suite --ref main --spa
 codex plugin add scott-dev-skills@scottdevskills
 ```
 
-If the `scottdevskills` marketplace is already configured, installation is a
-single command:
+If the `scottdevskills` marketplace is already configured, refresh it before
+installing. Codex installs from its local marketplace snapshot, not directly
+from GitHub on every install:
 
 ```powershell
+codex plugin marketplace upgrade scottdevskills
 codex plugin add scott-dev-skills@scottdevskills
 ```
 
@@ -58,10 +60,10 @@ codex plugin add scott-dev-skills@scottdevskills
 
 - If Codex does not show the new skills immediately, start a fresh Codex
   thread.
-- If the CLI says the marketplace is already configured, use the plugin install
-  command directly.
-- If an older install is stale, upgrade the marketplace or uninstall and install
-  the plugin again from the same marketplace.
+- If the CLI says the marketplace is already configured, refresh the marketplace
+  first, then install the plugin.
+- If an older install is stale, remove it, refresh the marketplace, and install
+  it again from the same marketplace.
 - The plugin id is `scott-dev-skills@scottdevskills`.
 
 ## Documentation

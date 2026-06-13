@@ -418,7 +418,7 @@
             <div class="install-card">
               <strong>Codex app install</strong>
               <p>
-                Add marketplace repository
+                Add or refresh marketplace repository
                 <code>scottconverse/scottdevskills-suite</code>, install
                 <code>scott-dev-skills</code>, then start a fresh Codex thread.
               </p>
@@ -427,9 +427,12 @@
               <strong>CLI install</strong>
               <p>
                 First-time CLI setup uses two steps. Once the marketplace is
-                configured, plugin install is a single command.
+                configured, refresh it before plugin install so Codex uses the
+                current snapshot.
               </p>
               <pre><code>codex plugin marketplace add scottconverse/scottdevskills-suite --ref main --sparse .agents/plugins/marketplace.json --sparse plugins/scott-dev-skills
+codex plugin add scott-dev-skills@scottdevskills</code></pre>
+              <pre><code>codex plugin marketplace upgrade scottdevskills
 codex plugin add scott-dev-skills@scottdevskills</code></pre>
             </div>
           </div>
@@ -437,7 +440,7 @@ codex plugin add scott-dev-skills@scottdevskills</code></pre>
           <ul>
             <li>Start a fresh Codex thread if newly installed skills do not appear.</li>
             <li>Use the plugin id <code>scott-dev-skills@scottdevskills</code> when reinstalling or removing it.</li>
-            <li>If the marketplace is already configured, install the plugin directly from <code>scottdevskills</code>.</li>
+            <li>If the marketplace is already configured, refresh <code>scottdevskills</code> before installing from it.</li>
           </ul>
         </section>
 

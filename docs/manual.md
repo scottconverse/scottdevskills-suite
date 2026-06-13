@@ -29,7 +29,7 @@ ScottDevSkills is distributed as a Codex marketplace plugin.
 For a first-time CLI install, add the marketplace and then install the plugin:
 
 ```powershell
-codex plugin marketplace add scottconverse/scottdevskills-suite --ref main --sparse plugins/scott-dev-skills
+codex plugin marketplace add scottconverse/scottdevskills-suite --ref main --sparse .agents/plugins/marketplace.json --sparse plugins/scott-dev-skills
 codex plugin add scott-dev-skills@scottdevskills
 ```
 

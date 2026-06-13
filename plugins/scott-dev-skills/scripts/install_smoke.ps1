@@ -4,7 +4,7 @@ param(
   [AllowEmptyString()]
   [string]$Ref = "main",
   [AllowEmptyString()]
-  [string]$SparsePath = "plugins/scott-dev-skills",
+  [string[]]$SparsePath = @(".agents/plugins/marketplace.json", "plugins/scott-dev-skills"),
   [string]$BaseDir = "C:\dev\scottdevskills-install-smoke",
   [switch]$KeepHomes
 )
@@ -45,8 +45,10 @@ function Add-Marketplace {
   if (-not [string]::IsNullOrWhiteSpace($Ref)) {
     $args += @("--ref", $Ref)
   }
-  if (-not [string]::IsNullOrWhiteSpace($SparsePath)) {
-    $args += @("--sparse", $SparsePath)
+  foreach ($path in $SparsePath) {
+    if (-not [string]::IsNullOrWhiteSpace($path)) {
+      $args += @("--sparse", $path)
+    }
   }
   Invoke-Codex -Args $args -CodexHome $CodexHome
 }

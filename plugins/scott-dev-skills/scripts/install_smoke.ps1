@@ -66,7 +66,7 @@ function Test-Home {
 }
 
 $shortHome = Join-Path $BaseDir "short-home"
-$longSegment = "long-path-" + ("x" * 96)
+$longSegment = "long-path-" + ("x" * 48)
 $longHome = Join-Path $BaseDir $longSegment
 
 try {

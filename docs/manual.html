@@ -4,16 +4,594 @@
     <meta charset="utf-8">
     <meta name="viewport" content="width=device-width, initial-scale=1">
     <title>ScottDevSkills Manual</title>
-    <meta http-equiv="refresh" content="0; url=manual.md">
+    <meta
+      name="description"
+      content="Professional user manual for the ScottDevSkills Codex plugin."
+    >
     <style>
+      :root {
+        color-scheme: light;
+        --ink: #18202f;
+        --muted: #606a7d;
+        --paper: #fffdf8;
+        --wash: #f1f4f8;
+        --line: #d8deea;
+        --blue: #1b5faa;
+        --green: #13735e;
+        --gold: #a36818;
+        --red: #a93544;
+        --panel: #ffffff;
+      }
+
+      * {
+        box-sizing: border-box;
+      }
+
+      html {
+        scroll-behavior: smooth;
+      }
+
       body {
-        font-family: system-ui, sans-serif;
-        margin: 40px;
-        color: #172033;
+        margin: 0;
+        color: var(--ink);
+        background: var(--wash);
+        font-family: "Sitka Text", Georgia, "Times New Roman", serif;
+        line-height: 1.62;
+      }
+
+      a {
+        color: var(--blue);
+      }
+
+      code {
+        padding: 2px 5px;
+        border: 1px solid var(--line);
+        border-radius: 5px;
+        background: #f7f9fc;
+        font-family: "Cascadia Mono", Consolas, monospace;
+        font-size: 0.92em;
+      }
+
+      .topbar {
+        position: sticky;
+        top: 0;
+        z-index: 10;
+        display: flex;
+        justify-content: space-between;
+        gap: 16px;
+        padding: 12px 24px;
+        border-bottom: 1px solid var(--line);
+        background: rgba(255, 253, 248, 0.94);
+        backdrop-filter: blur(10px);
+        font-family: "Bahnschrift", "Segoe UI", sans-serif;
+      }
+
+      .topbar a {
+        text-decoration: none;
+        font-weight: 700;
+      }
+
+      .hero {
+        padding: 68px 24px 46px;
+        color: #ffffff;
+        background:
+          linear-gradient(115deg, rgba(17, 29, 48, 0.94), rgba(20, 89, 132, 0.78)),
+          url("https://images.unsplash.com/photo-1518005020951-eccb494ad742?auto=format&fit=crop&w=2200&q=80");
+        background-position: center;
+        background-size: cover;
+      }
+
+      .hero-inner,
+      .layout {
+        width: min(1180px, 100%);
+        margin: 0 auto;
+      }
+
+      .eyebrow {
+        margin: 0 0 12px;
+        font-family: "Bahnschrift", "Segoe UI", sans-serif;
+        font-size: 14px;
+        font-weight: 700;
+        letter-spacing: 0.08em;
+        text-transform: uppercase;
+      }
+
+      h1,
+      h2,
+      h3 {
+        font-family: "Bahnschrift", "Segoe UI Variable Display", "Segoe UI", sans-serif;
+        letter-spacing: 0;
+      }
+
+      h1 {
+        max-width: 850px;
+        margin: 0;
+        font-size: clamp(42px, 7vw, 82px);
+        line-height: 0.98;
+      }
+
+      .lead {
+        max-width: 780px;
+        margin: 24px 0 0;
+        font-size: clamp(19px, 2.4vw, 26px);
+      }
+
+      .layout {
+        display: grid;
+        grid-template-columns: 250px minmax(0, 1fr);
+        gap: 28px;
+        padding: 30px 24px 72px;
+      }
+
+      .toc {
+        position: sticky;
+        top: 62px;
+        align-self: start;
+        padding: 18px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--panel);
+        font-family: "Bahnschrift", "Segoe UI", sans-serif;
+      }
+
+      .toc strong {
+        display: block;
+        margin-bottom: 10px;
+      }
+
+      .toc a {
+        display: block;
+        padding: 7px 0;
+        color: var(--muted);
+        text-decoration: none;
+      }
+
+      .toc a:hover {
+        color: var(--blue);
+      }
+
+      article {
+        min-width: 0;
+      }
+
+      section {
+        margin: 0 0 26px;
+        padding: 28px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--paper);
+      }
+
+      h2 {
+        margin: 0 0 14px;
+        font-size: clamp(28px, 4vw, 42px);
+        line-height: 1.08;
+      }
+
+      h3 {
+        margin: 24px 0 8px;
+        font-size: 22px;
+      }
+
+      p {
+        max-width: 860px;
+      }
+
+      .summary {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(230px, 1fr));
+        gap: 12px;
+        margin-top: 18px;
+      }
+
+      .summary-card,
+      .skill-card {
+        padding: 16px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #ffffff;
+      }
+
+      .summary-card strong,
+      .skill-card strong {
+        display: block;
+        margin-bottom: 6px;
+        font-family: "Bahnschrift", "Segoe UI", sans-serif;
+      }
+
+      .diagram {
+        margin-top: 18px;
+        padding: 18px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #ffffff;
+      }
+
+      .diagram-caption {
+        margin: 0 0 12px;
+        color: var(--muted);
+        font-family: "Bahnschrift", "Segoe UI", sans-serif;
+        font-size: 14px;
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
+
+      .architecture-grid {
+        display: grid;
+        grid-template-columns: repeat(6, 1fr);
+        gap: 10px;
+      }
+
+      .lane {
+        min-height: 92px;
+        display: grid;
+        align-content: center;
+        padding: 12px;
+        border: 1px solid var(--line);
+        border-top: 4px solid var(--blue);
+        border-radius: 8px;
+        background: #f8fbff;
+        text-align: center;
+        font-family: "Bahnschrift", "Segoe UI", sans-serif;
+        font-weight: 700;
+      }
+
+      .lane.source {
+        grid-column: 1 / -1;
+        border-top-color: var(--green);
+        background: #f5fbf8;
+      }
+
+      .lane.refs {
+        border-top-color: var(--gold);
+      }
+
+      .workflow {
+        display: grid;
+        grid-template-columns: repeat(5, 1fr);
+        gap: 10px;
+      }
+
+      .workflow .phase {
+        min-height: 118px;
+        padding: 14px;
+        border-left: 4px solid var(--green);
+        border-radius: 8px;
+        background: #ffffff;
+      }
+
+      .phase strong {
+        display: block;
+        margin-bottom: 6px;
+        font-family: "Bahnschrift", "Segoe UI", sans-serif;
+      }
+
+      .skill-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 12px;
+      }
+
+      table {
+        width: 100%;
+        border-collapse: collapse;
+        margin-top: 14px;
+        background: #ffffff;
+      }
+
+      th,
+      td {
+        padding: 12px;
+        border: 1px solid var(--line);
+        text-align: left;
+        vertical-align: top;
+      }
+
+      th {
+        font-family: "Bahnschrift", "Segoe UI", sans-serif;
+        background: #f7f9fc;
+      }
+
+      .callout {
+        padding: 18px;
+        border-left: 4px solid var(--gold);
+        background: #fff8eb;
+      }
+
+      @media (max-width: 900px) {
+        .layout {
+          grid-template-columns: 1fr;
+        }
+
+        .toc {
+          position: static;
+        }
+
+        .architecture-grid,
+        .workflow {
+          grid-template-columns: 1fr;
+        }
       }
     </style>
   </head>
   <body>
-    <p>Opening the <a href="manual.md">ScottDevSkills manual</a>.</p>
+    <nav class="topbar" aria-label="Primary">
+      <a href="index.html">ScottDevSkills</a>
+      <a href="https://github.com/scottconverse/scottdevskills-suite">GitHub</a>
+    </nav>
+
+    <header class="hero">
+      <div class="hero-inner">
+        <p class="eyebrow">User Manual / v0.1b</p>
+        <h1>How ScottDevSkills works.</h1>
+        <p class="lead">
+          A professional guide to the plugin architecture, individual skills,
+          and the development workflows they create together.
+        </p>
+      </div>
+    </header>
+
+    <div class="layout">
+      <aside class="toc" aria-label="Manual sections">
+        <strong>Manual</strong>
+        <a href="#overview">Overview</a>
+        <a href="#architecture">Architecture</a>
+        <a href="#workflow">Working Together</a>
+        <a href="#technical-model">Technical Model</a>
+        <a href="#skills">Skill Reference</a>
+        <a href="#choosing">Choosing A Skill</a>
+        <a href="#guidance">Operating Guidance</a>
+      </aside>
+
+      <article>
+        <section id="overview">
+          <h2>Overview</h2>
+          <p>
+            ScottDevSkills is a Codex plugin for evidence-first development
+            work. It gives Codex focused operating procedures for audits, UI
+            walkthroughs, manifest-driven pipeline runs, prompt quality checks,
+            context discipline, and optional gate design.
+          </p>
+          <p>
+            The suite is built around one principle: confidence should come
+            from evidence, not polished narration. A good workflow should leave
+            behind what was inspected, what was verified, what failed, what is
+            still unknown, and what should happen next.
+          </p>
+          <div class="summary">
+            <div class="summary-card">
+              <strong>Best use</strong>
+              Higher-risk development work that needs a repeatable review,
+              execution, or handoff loop.
+            </div>
+            <div class="summary-card">
+              <strong>Default stance</strong>
+              Gather evidence first. Repair only when repair is explicitly
+              requested.
+            </div>
+            <div class="summary-card">
+              <strong>Design</strong>
+              Narrow skill entrypoints with heavier references loaded only when
+              needed.
+            </div>
+          </div>
+        </section>
+
+        <section id="architecture">
+          <h2>Architecture</h2>
+          <p>
+            ScottDevSkills is packaged as a Codex marketplace plugin. Skill
+            metadata chooses the workflow, the skill body provides the active
+            procedure, and references provide detailed rubrics, templates, and
+            payloads when a task needs more depth.
+          </p>
+          <div class="diagram" aria-label="Architecture diagram">
+            <p class="diagram-caption">Request to evidence-backed output</p>
+            <div class="architecture-grid">
+              <div class="lane source">User request in Codex</div>
+              <div class="lane">Audit Lite</div>
+              <div class="lane">Audit Full</div>
+              <div class="lane">Walkthrough</div>
+              <div class="lane">Agent Pipeline</div>
+              <div class="lane">Prompt Quality</div>
+              <div class="lane">Context + Gates</div>
+              <div class="lane refs">Evidence standards</div>
+              <div class="lane refs">Role rubrics</div>
+              <div class="lane refs">Browser checks</div>
+              <div class="lane refs">Manifests + scripts</div>
+              <div class="lane refs">Eval cases</div>
+              <div class="lane refs">Handoff + templates</div>
+              <div class="lane source">Evidence-backed report, plan, run state, or template</div>
+            </div>
+          </div>
+        </section>
+
+        <section id="workflow">
+          <h2>How The Skills Work Together</h2>
+          <p>
+            The suite covers the lifecycle from unclear intent to structured
+            execution, inspection, and hardening. You do not need every skill
+            for every task; the point is to pick the smallest workflow that
+            matches the risk.
+          </p>
+          <div class="workflow" aria-label="Workflow diagram">
+            <div class="phase">
+              <strong>1. Shape</strong>
+              Intake, Context Discipline, and Prompt Quality turn unclear work
+              into testable intent.
+            </div>
+            <div class="phase">
+              <strong>2. Structure</strong>
+              Pipeline Init, New Run, and Validate Manifest create controlled
+              execution boundaries.
+            </div>
+            <div class="phase">
+              <strong>3. Execute</strong>
+              Run Pipeline moves staged work forward while preserving gates and
+              evidence.
+            </div>
+            <div class="phase">
+              <strong>4. Inspect</strong>
+              Audit Lite, Walkthrough, and Audit Full check work at the right
+              depth.
+            </div>
+            <div class="phase">
+              <strong>5. Harden</strong>
+              Hardgate Templates turn repeated misses into explicit checks.
+            </div>
+          </div>
+        </section>
+
+        <section id="technical-model">
+          <h2>Technical Model</h2>
+          <h3>Package Structure</h3>
+          <p>
+            The marketplace file exposes the plugin to Codex. The plugin
+            manifest declares metadata, version, capabilities, and the skill
+            location. Each skill folder contains a <code>SKILL.md</code>
+            entrypoint and optional references.
+          </p>
+          <h3>Execution Behavior</h3>
+          <p>
+            Most skills are procedural: they tell Codex what to inspect, how to
+            classify evidence, and what output shape to produce. Pipeline skills
+            may create or update project files when the user asks for setup,
+            scaffolding, or execution. Audit and walkthrough skills default to
+            review mode. Hardgate Templates are inert by default.
+          </p>
+          <h3>Evidence Standards</h3>
+          <p>
+            A finding should identify the affected file, route, workflow,
+            prompt, run artifact, or UI element; expected behavior; observed
+            behavior or concrete risk; impact; likely cause when supportable;
+            and a suggested fix or test.
+          </p>
+          <div class="callout">
+            If evidence is incomplete, ScottDevSkills should preserve that
+            uncertainty instead of turning a hunch into a defect.
+          </div>
+        </section>
+
+        <section id="skills">
+          <h2>Skill Reference</h2>
+          <div class="skill-grid">
+            <div class="skill-card">
+              <strong>Audit Lite</strong>
+              Fast review of a bug fix, scoped diff, a few touched files, or a
+              pre-merge sanity check. Output should be brief and findings-led.
+            </div>
+            <div class="skill-card">
+              <strong>Audit Full</strong>
+              Broad readiness review across engineering, UI/UX, docs, tests,
+              and QA. Best for release gates and handoffs.
+            </div>
+            <div class="skill-card">
+              <strong>Walkthrough</strong>
+              Browser and source inspection for UI wiring, routes, controls,
+              forms, console errors, network failures, and persistence.
+            </div>
+            <div class="skill-card">
+              <strong>Agent Pipeline</strong>
+              Router for manifest-driven work: initialize, capture, create,
+              validate, run, resume, inspect, or scaffold.
+            </div>
+            <div class="skill-card">
+              <strong>Pipeline Init</strong>
+              Prepares a repo with templates, policy scripts, run directory
+              conventions, and starter guidance.
+            </div>
+            <div class="skill-card">
+              <strong>Intake</strong>
+              Captures loose intent as durable pipeline input without starting
+              execution.
+            </div>
+            <div class="skill-card">
+              <strong>New Run</strong>
+              Creates a fresh run skeleton and prepares manifest/scope-lock
+              materials.
+            </div>
+            <div class="skill-card">
+              <strong>Validate Manifest</strong>
+              Checks schema, missing fields, path issues, scope locks, and
+              policy-shape problems before execution.
+            </div>
+            <div class="skill-card">
+              <strong>Run Pipeline</strong>
+              Executes or resumes a manifest-driven run while respecting gates,
+              policy checks, verification, and stop conditions.
+            </div>
+            <div class="skill-card">
+              <strong>Show Run Status</strong>
+              Read-only summary of run id, current stage, blockers, decisions,
+              and next valid action.
+            </div>
+            <div class="skill-card">
+              <strong>Audit Init</strong>
+              Scaffolds audit protocols, audit gates, and five-lens self-audit
+              materials.
+            </div>
+            <div class="skill-card">
+              <strong>Prompt Quality</strong>
+              Reviews prompts for ambiguity, output contracts, tool hazards,
+              injection exposure, and regression/eval coverage.
+            </div>
+            <div class="skill-card">
+              <strong>Context Discipline</strong>
+              Manages long sessions, large output, handoffs, and careful
+              pre-edit tracing for non-trivial code work.
+            </div>
+            <div class="skill-card">
+              <strong>Hardgate Templates</strong>
+              Designs policy checks, preflight scripts, final-response checks,
+              or hook templates without installing enforcement by surprise.
+            </div>
+          </div>
+        </section>
+
+        <section id="choosing">
+          <h2>Choosing A Skill</h2>
+          <table>
+            <thead>
+              <tr>
+                <th>Situation</th>
+                <th>Use</th>
+              </tr>
+            </thead>
+            <tbody>
+              <tr><td>One small fix needs review</td><td>Audit Lite</td></tr>
+              <tr><td>Whole project needs readiness review</td><td>Audit Full</td></tr>
+              <tr><td>UI may be cosmetic or partially wired</td><td>Walkthrough</td></tr>
+              <tr><td>Project work needs scope locks and stages</td><td>Agent Pipeline</td></tr>
+              <tr><td>A task idea needs capture before execution</td><td>Intake</td></tr>
+              <tr><td>A run exists but needs preflight</td><td>Validate Manifest</td></tr>
+              <tr><td>A run should move forward</td><td>Run Pipeline</td></tr>
+              <tr><td>A run needs read-only status</td><td>Show Run Status</td></tr>
+              <tr><td>Prompt behavior changed</td><td>Prompt Quality</td></tr>
+              <tr><td>Session context is becoming a risk</td><td>Context Discipline</td></tr>
+              <tr><td>A recurring failure needs gate design</td><td>Hardgate Templates</td></tr>
+            </tbody>
+          </table>
+        </section>
+
+        <section id="guidance">
+          <h2>Operating Guidance</h2>
+          <ul>
+            <li>Start with the narrowest skill that matches the task.</li>
+            <li>Do not use audit skills as repair skills unless repair is explicitly requested.</li>
+            <li>Prefer runtime evidence when reviewing UI behavior.</li>
+            <li>Prefer regression cases when reviewing prompts.</li>
+            <li>Prefer manifests and scope locks for work that spans multiple stages.</li>
+            <li>Preserve uncertainty instead of overstating findings.</li>
+          </ul>
+          <p>
+            ScottDevSkills v0.1b is an early beta. The plugin is installable
+            and validated, and its workflows are intentionally conservative.
+            The next improvements should come from real use: better trigger
+            regression cases, sharper output contracts, and examples from
+            successful audits, walkthroughs, and pipeline runs.
+          </p>
+        </section>
+      </article>
+    </div>
   </body>
 </html>

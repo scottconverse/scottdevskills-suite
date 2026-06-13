@@ -52,6 +52,26 @@
         font-size: 0.92em;
       }
 
+      pre {
+        margin: 14px 0;
+        overflow-x: auto;
+        padding: 14px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #101928;
+        color: #eef4ff;
+        font-family: "Cascadia Mono", Consolas, monospace;
+        font-size: 14px;
+        line-height: 1.5;
+      }
+
+      pre code {
+        padding: 0;
+        border: 0;
+        background: transparent;
+        color: inherit;
+      }
+
       .topbar {
         position: sticky;
         top: 0;
@@ -185,7 +205,8 @@
       }
 
       .summary-card,
-      .skill-card {
+      .skill-card,
+      .install-card {
         padding: 16px;
         border: 1px solid var(--line);
         border-radius: 8px;
@@ -193,10 +214,18 @@
       }
 
       .summary-card strong,
-      .skill-card strong {
+      .skill-card strong,
+      .install-card strong {
         display: block;
         margin-bottom: 6px;
         font-family: "Bahnschrift", "Segoe UI", sans-serif;
+      }
+
+      .install-grid {
+        display: grid;
+        grid-template-columns: repeat(auto-fit, minmax(260px, 1fr));
+        gap: 14px;
+        margin-top: 18px;
       }
 
       .diagram {
@@ -335,6 +364,7 @@
       <aside class="toc" aria-label="Manual sections">
         <strong>Manual</strong>
         <a href="#overview">Overview</a>
+        <a href="#installation">Installation</a>
         <a href="#architecture">Architecture</a>
         <a href="#workflow">Working Together</a>
         <a href="#technical-model">Technical Model</a>
@@ -375,6 +405,40 @@
               needed.
             </div>
           </div>
+        </section>
+
+        <section id="installation">
+          <h2>Installation</h2>
+          <p>
+            ScottDevSkills is distributed as a Codex marketplace plugin. Install
+            the marketplace first, then install the plugin named
+            <code>scott-dev-skills</code>.
+          </p>
+          <div class="install-grid">
+            <div class="install-card">
+              <strong>Codex app install</strong>
+              <p>
+                Add marketplace repository
+                <code>scottconverse/scottdevskills-suite</code>, install
+                <code>scott-dev-skills</code>, then start a fresh Codex thread.
+              </p>
+            </div>
+            <div class="install-card">
+              <strong>CLI install</strong>
+              <p>
+                First-time CLI setup uses two steps. Once the marketplace is
+                configured, plugin install is a single command.
+              </p>
+              <pre><code>codex plugin marketplace add scottconverse/scottdevskills-suite --ref main
+codex plugin add scott-dev-skills@scottdevskills</code></pre>
+            </div>
+          </div>
+          <h3>Troubleshooting</h3>
+          <ul>
+            <li>Start a fresh Codex thread if newly installed skills do not appear.</li>
+            <li>Use the plugin id <code>scott-dev-skills@scottdevskills</code> when reinstalling or removing it.</li>
+            <li>If the marketplace is already configured, install the plugin directly from <code>scottdevskills</code>.</li>
+          </ul>
         </section>
 
         <section id="architecture">

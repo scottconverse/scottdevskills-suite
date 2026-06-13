@@ -105,6 +105,12 @@
         background: #fff;
       }
 
+      .button.dark {
+        color: #ffffff;
+        border-color: #11203a;
+        background: #11203a;
+      }
+
       main {
         padding: 54px 24px 72px;
       }
@@ -246,6 +252,56 @@
         margin-bottom: 7px;
       }
 
+      .install-panel {
+        display: grid;
+        grid-template-columns: 1fr 1fr;
+        gap: 18px;
+        align-items: stretch;
+        margin-top: 22px;
+      }
+
+      .install-card {
+        padding: 22px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #fff;
+      }
+
+      .install-card h3 {
+        margin: 0 0 10px;
+        font-size: 22px;
+      }
+
+      .install-card p {
+        margin: 0 0 14px;
+        color: var(--muted);
+      }
+
+      pre {
+        margin: 14px 0;
+        overflow-x: auto;
+        padding: 14px;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: #101928;
+        color: #eef4ff;
+        font-family: Consolas, "Cascadia Mono", monospace;
+        font-size: 14px;
+        line-height: 1.5;
+      }
+
+      pre code {
+        padding: 0;
+        border: 0;
+        background: transparent;
+        color: inherit;
+      }
+
+      .fine-print {
+        color: var(--muted);
+        font-size: 15px;
+      }
+
       footer {
         border-top: 1px solid var(--line);
         padding: 28px 24px;
@@ -270,7 +326,8 @@
         }
 
         .diagram-row,
-        .flow {
+        .flow,
+        .install-panel {
           grid-template-columns: 1fr;
         }
       }
@@ -287,6 +344,7 @@
         </p>
         <div class="actions">
           <a class="button primary" href="manual.html">Read the manual</a>
+          <a class="button" href="#install">Install</a>
           <a class="button" href="https://github.com/scottconverse/scottdevskills-suite">View on GitHub</a>
         </div>
       </div>
@@ -452,13 +510,37 @@
         </div>
       </section>
 
-      <section>
+      <section id="install">
         <h2>Installable as a Codex marketplace plugin.</h2>
         <p class="plain">
           The repository includes marketplace metadata, the plugin package,
           lean skill entrypoints, on-demand references, pipeline payloads, and a
           validation script for the suite structure.
         </p>
+        <div class="install-panel">
+          <div class="install-card">
+            <h3>Codex app</h3>
+            <p>
+              Add the marketplace repository, install the plugin, then start a
+              fresh Codex thread so the skills are loaded.
+            </p>
+            <pre><code>Marketplace: scottconverse/scottdevskills-suite
+Plugin: scott-dev-skills</code></pre>
+            <a class="button dark" href="https://github.com/scottconverse/scottdevskills-suite">Open repository</a>
+          </div>
+          <div class="install-card">
+            <h3>CLI</h3>
+            <p>
+              A first-time CLI install is two short steps. If the marketplace is
+              already configured, the second line is the only command needed.
+            </p>
+            <pre><code>codex plugin marketplace add scottconverse/scottdevskills-suite --ref main
+codex plugin add scott-dev-skills@scottdevskills</code></pre>
+            <div class="fine-print">
+              Plugin id: <code>scott-dev-skills@scottdevskills</code>
+            </div>
+          </div>
+        </div>
       </section>
     </main>
 
